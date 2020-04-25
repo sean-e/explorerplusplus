@@ -11,7 +11,6 @@
 #include "ShellBrowser/ShellBrowser.h"
 #include "TabContainer.h"
 #include "TabRestorerUI.h"
-#include "../Helper/DpiCompatibility.h"
 #include "../Helper/Macros.h"
 #include <list>
 
@@ -24,8 +23,8 @@ void Explorerplusplus::InitializeTabs()
 	/* The tab backing will hold the tab window. */
 	CreateTabBacking();
 
-	m_tabContainer = TabContainer::Create(m_hTabBacking, this, this, &m_FileActionHandler,
-		&m_cachedIcons, &m_bookmarkTree, m_hLanguageModule, m_config);
+	m_tabContainer = TabContainer::Create(
+		m_hTabBacking, this, this, &m_cachedIcons, &m_bookmarkTree, m_hLanguageModule, m_config);
 	m_tabContainer->tabCreatedSignal.AddObserver(
 		boost::bind(&Explorerplusplus::OnTabCreated, this, _1, _2), boost::signals2::at_front);
 	m_tabContainer->tabNavigationCompletedSignal.AddObserver(
@@ -37,7 +36,7 @@ void Explorerplusplus::InitializeTabs()
 		boost::bind(&Explorerplusplus::OnTabListViewSelectionChanged, this, _1),
 		boost::signals2::at_front);
 
-	UINT dpi = DpiCompatibility::GetInstance().GetDpiForWindow(m_tabContainer->GetHWND());
+	UINT dpi = m_dpiCompat.GetDpiForWindow(m_tabContainer->GetHWND());
 	int tabWindowHeight = MulDiv(TAB_WINDOW_HEIGHT_96DPI, dpi, USER_DEFAULT_SCREEN_DPI);
 	SetWindowPos(
 		m_tabContainer->GetHWND(), nullptr, 0, 0, 0, tabWindowHeight, SWP_NOMOVE | SWP_NOZORDER);
@@ -84,6 +83,7 @@ void Explorerplusplus::OnNavigationCompleted(const Tab &tab)
 HRESULT Explorerplusplus::OnNewTab()
 {
 	const Tab &selectedTab = m_tabContainer->GetSelectedTab();
+	FolderColumns cols = selectedTab.GetShellBrowser()->ExportAllColumns();
 	int selectionIndex = ListView_GetNextItem(
 		selectedTab.GetShellBrowser()->GetListView(), -1, LVNI_FOCUSED | LVNI_SELECTED);
 
@@ -96,9 +96,7 @@ HRESULT Explorerplusplus::OnNewTab()
 		if (WI_IsFlagSet(fileFindData.dwFileAttributes, FILE_ATTRIBUTE_DIRECTORY))
 		{
 			auto pidl = selectedTab.GetShellBrowser()->GetItemCompleteIdl(selectionIndex);
-			FolderColumns cols = selectedTab.GetShellBrowser()->ExportAllColumns();
-			return m_tabContainer->CreateNewTab(
-				pidl.get(), TabSettings(_selected = true), nullptr, cols);
+			return m_tabContainer->CreateNewTab(pidl.get(), TabSettings(_selected = true), nullptr, cols);
 		}
 	}
 
@@ -134,17 +132,13 @@ HRESULT Explorerplusplus::RestoreTabs(ILoadSave *pLoadSave)
 			hr = m_tabContainer->CreateNewTab(szDirectory, TabSettings(_selected = true));
 
 			if (hr == S_OK)
-			{
 				nTabsCreated++;
-			}
 		}
 	}
 	else
 	{
 		if (m_config->startupMode == StartupMode::PreviousTabs)
-		{
 			nTabsCreated = pLoadSave->LoadPreviousTabs();
-		}
 	}
 
 	if (nTabsCreated == 0)
@@ -167,7 +161,7 @@ HRESULT Explorerplusplus::RestoreTabs(ILoadSave *pLoadSave)
 	{
 		if (nTabsCreated == 1)
 		{
-			m_bShowTabBar = false;
+			m_bShowTabBar = FALSE;
 		}
 	}
 
@@ -219,13 +213,9 @@ void Explorerplusplus::OnSelectTabByIndex(int iTab)
 	else
 	{
 		if (iTab < nTabs)
-		{
 			newIndex = iTab;
-		}
 		else
-		{
 			newIndex = nTabs - 1;
-		}
 	}
 
 	m_tabContainer->SelectTabAtIndex(newIndex);
@@ -239,13 +229,13 @@ bool Explorerplusplus::OnCloseTab()
 
 void Explorerplusplus::ShowTabBar()
 {
-	m_bShowTabBar = true;
+	m_bShowTabBar = TRUE;
 	UpdateLayout();
 }
 
 void Explorerplusplus::HideTabBar()
 {
-	m_bShowTabBar = false;
+	m_bShowTabBar = FALSE;
 	UpdateLayout();
 }
 
