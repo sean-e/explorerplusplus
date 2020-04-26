@@ -174,7 +174,7 @@ std::wstring GetColumnText(ColumnType columnType, const BasicItemInfo_t &basicIt
 		return GetMediaMetadataColumnText(basicItemInfo, MediaMetadataType::Year);
 
 	default:
-		assert(false);
+// 		assert(false);
 		break;
 	}
 
@@ -950,7 +950,7 @@ const TCHAR *GetMediaMetadataAttributeName(MediaMetadataType mediaMetadataType)
 		return g_wszWMYear;
 
 	default:
-		assert(false);
+// 		assert(false);
 		break;
 	}
 
