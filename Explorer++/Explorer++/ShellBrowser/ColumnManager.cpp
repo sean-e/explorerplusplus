@@ -449,7 +449,7 @@ SortMode ShellBrowser::DetermineColumnSortMode(int iColumnId)
 			return SortMode::MediaYear;
 
 		default:
-			assert(false);
+// 			assert(false);
 			break;
 	}
 
@@ -650,7 +650,7 @@ int ShellBrowser::LookupColumnNameStringIndex(int iColumnId)
 		return IDS_COLUMN_NAME_YEAR;
 
 	default:
-		assert(false);
+// 		assert(false);
 		break;
 	}
 
@@ -770,7 +770,7 @@ int ShellBrowser::LookupColumnDescriptionStringIndex(int iColumnId)
 		return IDS_COLUMN_DESCRIPTION_BITRATE;
 
 	default:
-		assert(false);
+// 		assert(false);
 		break;
 	}
 
