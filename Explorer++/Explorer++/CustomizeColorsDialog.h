@@ -5,7 +5,7 @@
 #pragma once
 
 #include "ColorRuleHelper.h"
-#include "../Helper/BaseDialog.h"
+#include "DarkModeDialogBase.h"
 #include "../Helper/DialogSettings.h"
 #include "../Helper/ResizableDialog.h"
 #include <vector>
@@ -16,11 +16,9 @@ __interface IExplorerplusplus;
 class CustomizeColorsDialogPersistentSettings : public DialogSettings
 {
 public:
-
 	static CustomizeColorsDialogPersistentSettings &GetInstance();
 
 private:
-
 	friend CustomizeColorsDialog;
 
 	static const TCHAR SETTINGS_KEY[];
@@ -28,43 +26,43 @@ private:
 	CustomizeColorsDialogPersistentSettings();
 
 	CustomizeColorsDialogPersistentSettings(const CustomizeColorsDialogPersistentSettings &);
-	CustomizeColorsDialogPersistentSettings & operator=(const CustomizeColorsDialogPersistentSettings &);
+	CustomizeColorsDialogPersistentSettings &operator=(
+		const CustomizeColorsDialogPersistentSettings &);
 };
 
-class CustomizeColorsDialog : public BaseDialog
+class CustomizeColorsDialog : public DarkModeDialogBase
 {
 public:
-
 	CustomizeColorsDialog(HINSTANCE hInstance, HWND hParent, IExplorerplusplus *expp,
-		std::vector<NColorRuleHelper::ColorRule_t> *pColorRuleList);
+		std::vector<NColorRuleHelper::ColorRule> *pColorRuleList);
 
 protected:
-
-	INT_PTR	OnInitDialog() override;
-	INT_PTR	OnCommand(WPARAM wParam,LPARAM lParam) override;
-	INT_PTR	OnNotify(NMHDR *pnmhdr) override;
-	INT_PTR	OnClose() override;
+	INT_PTR OnInitDialog() override;
+	INT_PTR OnCommand(WPARAM wParam, LPARAM lParam) override;
+	INT_PTR OnNotify(NMHDR *pnmhdr) override;
+	INT_PTR OnClose() override;
 
 	virtual wil::unique_hicon GetDialogIcon(int iconWidth, int iconHeight) const override;
 
 private:
+	void GetResizableControlInformation(BaseDialog::DialogSizeConstraint &dsc,
+		std::list<ResizableDialog::Control> &ControlList) override;
+	void SaveState() override;
 
-	void	GetResizableControlInformation(BaseDialog::DialogSizeConstraint &dsc, std::list<ResizableDialog::Control_t> &ControlList) override;
-	void	SaveState() override;
+	void OnNew();
+	void OnEdit();
+	void InsertColorRuleIntoListView(
+		HWND hListView, const NColorRuleHelper::ColorRule &colorRule, int iIndex);
+	void EditColorRule(int iSelected);
+	void OnMove(BOOL bUp);
+	void OnDelete();
 
-	void	OnNew();
-	void	OnEdit();
-	void	InsertColorRuleIntoListView(HWND hListView,const NColorRuleHelper::ColorRule_t &ColorRule,int iIndex);
-	void	EditColorRule(int iSelected);
-	void	OnMove(BOOL bUp);
-	void	OnDelete();
-
-	void	OnOk();
-	void	OnCancel();
+	void OnOk();
+	void OnCancel();
 
 	IExplorerplusplus *m_expp;
 
-	std::vector<NColorRuleHelper::ColorRule_t> *m_pColorRuleList;
+	std::vector<NColorRuleHelper::ColorRule> *m_pColorRuleList;
 
 	CustomizeColorsDialogPersistentSettings *m_persistentSettings;
 };

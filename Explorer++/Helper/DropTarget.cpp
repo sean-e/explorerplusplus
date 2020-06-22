@@ -18,7 +18,8 @@ DropTarget::DropTarget(HWND hwnd, DropTargetInternal *dropTargetInternal) :
 {
 	RegisterDragDrop(hwnd, this);
 
-	m_windowSubclasses.emplace_back(hwnd, WndProc, SUBCLASS_ID, 0);
+	m_windowSubclasses.push_back(
+		std::make_unique<WindowSubclassWrapper>(hwnd, WndProc, SUBCLASS_ID, 0));
 }
 
 LRESULT CALLBACK DropTarget::WndProc(HWND hwnd, UINT msg, WPARAM wParam,
@@ -42,7 +43,7 @@ IFACEMETHODIMP DropTarget::QueryInterface(REFIID iid, void **object)
 	static const QITAB qit[] =
 	{
 		QITABENT(DropTarget, IDropTarget),
-		{0}
+		{nullptr}
 	};
 
 	return QISearch(this, qit, iid, object);

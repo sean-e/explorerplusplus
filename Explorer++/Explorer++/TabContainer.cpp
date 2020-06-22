@@ -7,6 +7,7 @@
 #include "Bookmarks/BookmarkHelper.h"
 #include "Config.h"
 #include "CoreInterface.h"
+#include "DarkModeHelper.h"
 #include "Icon.h"
 #include "IconResourceLoader.h"
 #include "MainResource.h"
@@ -108,10 +109,19 @@ void TabContainer::Initialize(HWND parent)
 	RegisterDragDrop(m_hwnd, pTabDropHandler);
 	pTabDropHandler->Release();
 
-	m_windowSubclasses.emplace_back(
-		m_hwnd, WndProcStub, SUBCLASS_ID, reinterpret_cast<DWORD_PTR>(this));
-	m_windowSubclasses.emplace_back(
-		parent, ParentWndProcStub, PARENT_SUBCLASS_ID, reinterpret_cast<DWORD_PTR>(this));
+	auto &darkModeHelper = DarkModeHelper::GetInstance();
+
+	if (darkModeHelper.IsDarkModeEnabled())
+	{
+		HWND tooltips = TabCtrl_GetToolTips(m_hwnd);
+		darkModeHelper.AllowDarkModeForWindow(tooltips, true);
+		SetWindowTheme(tooltips, L"Explorer", nullptr);
+	}
+
+	m_windowSubclasses.push_back(std::make_unique<WindowSubclassWrapper>(
+		m_hwnd, WndProcStub, SUBCLASS_ID, reinterpret_cast<DWORD_PTR>(this)));
+	m_windowSubclasses.push_back(std::make_unique<WindowSubclassWrapper>(
+		parent, ParentWndProcStub, PARENT_SUBCLASS_ID, reinterpret_cast<DWORD_PTR>(this)));
 
 	m_connections.push_back(
 		tabCreatedSignal.AddObserver(boost::bind(&TabContainer::OnTabCreated, this, _1, _2)));
@@ -1199,18 +1209,26 @@ void TabContainer::SelectAdjacentTab(BOOL bNextTab)
 		/* If this is the last tab in the order,
 		wrap the selection back to the start. */
 		if (newIndex == (nTabs - 1))
+		{
 			newIndex = 0;
+		}
 		else
+		{
 			newIndex++;
+		}
 	}
 	else
 	{
 		/* If this is the first tab in the order,
 		wrap the selection back to the end. */
 		if (newIndex == 0)
+		{
 			newIndex = nTabs - 1;
+		}
 		else
+		{
 			newIndex--;
+		}
 	}
 
 	SelectTabAtIndex(newIndex);

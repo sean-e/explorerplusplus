@@ -31,7 +31,7 @@ private:
 
 HRESULT CreateDropSource(IDropSource **ppDropSource,DragType dragType)
 {
-	if(ppDropSource == NULL)
+	if(ppDropSource == nullptr)
 	{
 		return E_FAIL;
 	}
@@ -50,7 +50,7 @@ DropSource::DropSource(DragType dragType)
 /* IUnknown interface members. */
 HRESULT __stdcall DropSource::QueryInterface(REFIID iid, void **ppvObject)
 {
-	*ppvObject = NULL;
+	*ppvObject = nullptr;
 
 	if(iid == IID_IDropSource ||
 		iid == IID_IUnknown)
@@ -92,21 +92,27 @@ HRESULT _stdcall DropSource::QueryContinueDrag(BOOL fEscapePressed,DWORD grfKeyS
 
 	if(m_DragType == DragType::LeftClick)
 	{
-		if((grfKeyState & MK_LBUTTON) == 0)
+		if ((grfKeyState & MK_LBUTTON) == 0)
+		{
 			return DRAGDROP_S_DROP;
+		}
 
 		dwStopButton = MK_RBUTTON;
 	}
 	else if(m_DragType == DragType::RightClick)
 	{
-		if((grfKeyState & MK_RBUTTON) == 0)
+		if ((grfKeyState & MK_RBUTTON) == 0)
+		{
 			return DRAGDROP_S_DROP;
+		}
 
 		dwStopButton = MK_LBUTTON;
 	}
 
-	if(fEscapePressed == TRUE || grfKeyState & dwStopButton)
+	if (fEscapePressed == TRUE || grfKeyState & dwStopButton)
+	{
 		return DRAGDROP_S_CANCEL;
+	}
 
 	return S_OK;
 }

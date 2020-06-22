@@ -5,10 +5,12 @@
 #include "stdafx.h"
 #include "Bookmarks/UI/ManageBookmarksDialog.h"
 #include "Bookmarks/BookmarkHelper.h"
+#include "Bookmarks/BookmarkIconManager.h"
 #include "Bookmarks/BookmarkNavigationController.h"
 #include "Bookmarks/BookmarkTree.h"
 #include "Bookmarks/UI/BookmarkTreeView.h"
 #include "CoreInterface.h"
+#include "DarkModeHelper.h"
 #include "IconResourceLoader.h"
 #include "MainResource.h"
 #include "Navigation.h"
@@ -17,14 +19,17 @@
 #include "../Helper/ListViewHelper.h"
 #include "../Helper/Macros.h"
 #include "../Helper/MenuHelper.h"
+#include "../Helper/WindowSubclassWrapper.h"
 
 const TCHAR ManageBookmarksDialogPersistentSettings::SETTINGS_KEY[] = _T("ManageBookmarks");
 
 ManageBookmarksDialog::ManageBookmarksDialog(HINSTANCE hInstance, HWND hParent,
-	IExplorerplusplus *pexpp, Navigation *navigation, BookmarkTree *bookmarkTree) :
-	BaseDialog(hInstance, IDD_MANAGE_BOOKMARKS, hParent, true),
+	IExplorerplusplus *pexpp, Navigation *navigation, IconFetcher *iconFetcher,
+	BookmarkTree *bookmarkTree) :
+	DarkModeDialogBase(hInstance, IDD_MANAGE_BOOKMARKS, hParent, true),
 	m_pexpp(pexpp),
 	m_navigation(navigation),
+	m_iconFetcher(iconFetcher),
 	m_bookmarkTree(bookmarkTree)
 {
 	m_persistentSettings = &ManageBookmarksDialogPersistentSettings::GetInstance();
@@ -59,30 +64,25 @@ INT_PTR ManageBookmarksDialog::OnInitDialog()
 }
 
 void ManageBookmarksDialog::GetResizableControlInformation(
-	BaseDialog::DialogSizeConstraint &dsc, std::list<ResizableDialog::Control_t> &controlList)
+	BaseDialog::DialogSizeConstraint &dsc, std::list<ResizableDialog::Control> &controlList)
 {
-	dsc = BaseDialog::DIALOG_SIZE_CONSTRAINT_NONE;
+	dsc = BaseDialog::DialogSizeConstraint::None;
 
-	ResizableDialog::Control_t control;
+	ResizableDialog::Control control;
 
 	control.iID = IDC_MANAGEBOOKMARKS_TREEVIEW;
-	control.Type = ResizableDialog::TYPE_RESIZE;
-	control.Constraint = ResizableDialog::CONSTRAINT_Y;
+	control.Type = ResizableDialog::ControlType::Resize;
+	control.Constraint = ResizableDialog::ControlConstraint::Y;
 	controlList.push_back(control);
 
 	control.iID = IDC_MANAGEBOOKMARKS_LISTVIEW;
-	control.Type = ResizableDialog::TYPE_RESIZE;
-	control.Constraint = ResizableDialog::CONSTRAINT_NONE;
+	control.Type = ResizableDialog::ControlType::Resize;
+	control.Constraint = ResizableDialog::ControlConstraint::None;
 	controlList.push_back(control);
 
 	control.iID = IDOK;
-	control.Type = ResizableDialog::TYPE_MOVE;
-	control.Constraint = ResizableDialog::CONSTRAINT_NONE;
-	controlList.push_back(control);
-
-	control.iID = IDC_GRIPPER;
-	control.Type = ResizableDialog::TYPE_MOVE;
-	control.Constraint = ResizableDialog::CONSTRAINT_NONE;
+	control.Type = ResizableDialog::ControlType::Move;
+	control.Constraint = ResizableDialog::ControlConstraint::None;
 	controlList.push_back(control);
 }
 
@@ -94,7 +94,15 @@ wil::unique_hicon ManageBookmarksDialog::GetDialogIcon(int iconWidth, int iconHe
 
 void ManageBookmarksDialog::SetupToolbar()
 {
-	m_hToolbar = CreateToolbar(m_hDlg,
+	m_toolbarParent = CreateWindow(WC_STATIC, EMPTY_STRING, WS_VISIBLE | WS_CHILD | WS_CLIPSIBLINGS,
+		0, 0, 0, 0, m_hDlg, nullptr, GetModuleHandle(nullptr), nullptr);
+
+	m_windowSubclasses.push_back(std::make_unique<WindowSubclassWrapper>(m_toolbarParent,
+		std::bind(&ManageBookmarksDialog::ParentWndProc, this, std::placeholders::_1,
+			std::placeholders::_2, std::placeholders::_3, std::placeholders::_4),
+		0));
+
+	m_hToolbar = CreateToolbar(m_toolbarParent,
 		WS_CHILD | WS_VISIBLE | WS_CLIPSIBLINGS | WS_CLIPCHILDREN | TBSTYLE_TOOLTIPS | TBSTYLE_LIST
 			| TBSTYLE_TRANSPARENT | TBSTYLE_FLAT | CCS_NODIVIDER | CCS_NORESIZE,
 		TBSTYLE_EX_MIXEDBUTTONS | TBSTYLE_EX_DRAWDDARROWS | TBSTYLE_EX_DOUBLEBUFFER
@@ -114,7 +122,8 @@ void ManageBookmarksDialog::SetupToolbar()
 
 	TBBUTTON tbb;
 
-	std::wstring text = ResourceHelper::LoadString(GetInstance(), IDS_MANAGE_BOOKMARKS_TOOLBAR_BACK);
+	std::wstring text =
+		ResourceHelper::LoadString(GetInstance(), IDS_MANAGE_BOOKMARKS_TOOLBAR_BACK);
 
 	tbb.iBitmap = m_imageListToolbarMappings.at(Icon::Back);
 	tbb.idCommand = TOOLBAR_ID_BACK;
@@ -163,8 +172,12 @@ void ManageBookmarksDialog::SetupToolbar()
 	MapWindowPoints(HWND_DESKTOP, m_hDlg, reinterpret_cast<LPPOINT>(&rcListView), 2);
 
 	auto dwButtonSize = static_cast<DWORD>(SendMessage(m_hToolbar, TB_GETBUTTONSIZE, 0, 0));
-	SetWindowPos(m_hToolbar, nullptr, rcTreeView.left, (rcTreeView.top - HIWORD(dwButtonSize)) / 2,
-		rcListView.right - rcTreeView.left, HIWORD(dwButtonSize), 0);
+
+	SetWindowPos(m_toolbarParent, nullptr, rcTreeView.left,
+		(rcTreeView.top - HIWORD(dwButtonSize)) / 2, rcListView.right - rcTreeView.left,
+		HIWORD(dwButtonSize), 0);
+	SetWindowPos(
+		m_hToolbar, nullptr, 0, 0, rcListView.right - rcTreeView.left, HIWORD(dwButtonSize), 0);
 }
 
 void ManageBookmarksDialog::SetupTreeView()
@@ -182,12 +195,87 @@ void ManageBookmarksDialog::SetupListView()
 {
 	HWND hListView = GetDlgItem(m_hDlg, IDC_MANAGEBOOKMARKS_LISTVIEW);
 
-	m_bookmarkListView = new BookmarkListView(
-		hListView, GetInstance(), m_bookmarkTree, m_pexpp, m_persistentSettings->m_listViewColumns);
+	m_bookmarkListView = new BookmarkListView(hListView, GetInstance(), m_bookmarkTree, m_pexpp,
+		m_iconFetcher, m_persistentSettings->m_listViewColumns);
 
 	m_connections.push_back(m_bookmarkListView->AddNavigationCompletedObserver(
 		std::bind(&ManageBookmarksDialog::OnListViewNavigation, this, std::placeholders::_1,
 			std::placeholders::_2)));
+}
+
+LRESULT CALLBACK ManageBookmarksDialog::ParentWndProc(
+	HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+	switch (msg)
+	{
+	case WM_COMMAND:
+		if (HIWORD(wParam) == 0 || HIWORD(wParam) == 1)
+		{
+			switch (LOWORD(wParam))
+			{
+			case TOOLBAR_ID_BACK:
+				m_navigationController->GoBack();
+				break;
+
+			case TOOLBAR_ID_FORWARD:
+				m_navigationController->GoForward();
+				break;
+
+			case TOOLBAR_ID_ORGANIZE:
+				ShowOrganizeMenu();
+				break;
+
+			case TOOLBAR_ID_VIEWS:
+				ShowViewMenu();
+				break;
+			}
+		}
+		break;
+
+	case WM_NOTIFY:
+		if (reinterpret_cast<LPNMHDR>(lParam)->hwndFrom == m_hToolbar)
+		{
+			switch (reinterpret_cast<LPNMHDR>(lParam)->code)
+			{
+			case NM_CUSTOMDRAW:
+				if (auto result = OnToolbarCustomDraw(reinterpret_cast<NMTBCUSTOMDRAW *>(lParam)))
+				{
+					return *result;
+				}
+				break;
+
+			case TBN_DROPDOWN:
+				OnTbnDropDown(reinterpret_cast<NMTOOLBAR *>(lParam));
+				break;
+			}
+		}
+		break;
+	}
+
+	return DefSubclassProc(hwnd, msg, wParam, lParam);
+}
+
+std::optional<LRESULT> ManageBookmarksDialog::OnToolbarCustomDraw(NMTBCUSTOMDRAW *customDraw)
+{
+	auto &darkModeHelper = DarkModeHelper::GetInstance();
+
+	if (!darkModeHelper.IsDarkModeEnabled())
+	{
+		return std::nullopt;
+	}
+
+	switch (customDraw->nmcd.dwDrawStage)
+	{
+	case CDDS_PREPAINT:
+		return CDRF_NOTIFYITEMDRAW;
+
+	case CDDS_ITEMPREPAINT:
+		customDraw->clrText = DarkModeHelper::FOREGROUND_COLOR;
+		customDraw->clrHighlightHotTrack = DarkModeHelper::BUTTON_HIGHLIGHT_COLOR;
+		return TBCDRF_USECDCOLORS | TBCDRF_HILITEHOTTRACK;
+	}
+
+	return std::nullopt;
 }
 
 INT_PTR ManageBookmarksDialog::OnAppCommand(HWND hwnd, UINT uCmd, UINT uDevice, DWORD dwKeys)
@@ -226,40 +314,12 @@ LRESULT ManageBookmarksDialog::HandleMenuOrAccelerator(WPARAM wParam)
 {
 	switch (LOWORD(wParam))
 	{
-	case TOOLBAR_ID_BACK:
-		m_navigationController->GoBack();
-		break;
-
-	case TOOLBAR_ID_FORWARD:
-		m_navigationController->GoForward();
-		break;
-
-	case TOOLBAR_ID_ORGANIZE:
-		ShowOrganizeMenu();
-		break;
-
-	case TOOLBAR_ID_VIEWS:
-		ShowViewMenu();
-		break;
-
 	case IDOK:
 		OnOk();
 		break;
 
 	case IDCANCEL:
 		OnCancel();
-		break;
-	}
-
-	return 0;
-}
-
-INT_PTR ManageBookmarksDialog::OnNotify(NMHDR *pnmhdr)
-{
-	switch (pnmhdr->code)
-	{
-	case TBN_DROPDOWN:
-		OnTbnDropDown(reinterpret_cast<NMTOOLBAR *>(pnmhdr));
 		break;
 	}
 
@@ -509,8 +569,7 @@ void ManageBookmarksDialog::SetOrganizeMenuItemStates(HMENU menu)
 
 	MenuHelper::EnableItem(
 		menu, IDM_MB_ORGANIZE_NEWBOOKMARK, focus == listView || focus == treeView);
-	MenuHelper::EnableItem(
-		menu, IDM_MB_ORGANIZE_NEWFOLDER, focus == listView || focus == treeView);
+	MenuHelper::EnableItem(menu, IDM_MB_ORGANIZE_NEWFOLDER, focus == listView || focus == treeView);
 	MenuHelper::EnableItem(menu, IDM_MB_ORGANIZE_SELECTALL, focus == listView);
 
 	bool canDelete = false;
@@ -580,7 +639,16 @@ void ManageBookmarksDialog::OnNewBookmark()
 
 	if (focus == listView)
 	{
-		targetIndex = m_bookmarkListView->GetLastSelectedItemIndex() + 1;
+		auto lastSelectedItemIndex = m_bookmarkListView->GetLastSelectedItemIndex();
+
+		if (lastSelectedItemIndex)
+		{
+			targetIndex = *lastSelectedItemIndex + 1;
+		}
+		else
+		{
+			targetIndex = m_currentBookmarkFolder->GetChildren().size();
+		}
 	}
 
 	auto bookmark = BookmarkHelper::AddBookmarkItem(m_bookmarkTree, BookmarkItem::Type::Bookmark,
@@ -639,7 +707,16 @@ void ManageBookmarksDialog::OnPaste()
 
 	if (focus == GetDlgItem(m_hDlg, IDC_MANAGEBOOKMARKS_LISTVIEW))
 	{
-		targetIndex = m_bookmarkListView->GetLastSelectedItemIndex() + 1;
+		auto lastSelectedItemindex = m_bookmarkListView->GetLastSelectedItemIndex();
+
+		if (lastSelectedItemindex)
+		{
+			targetIndex = *lastSelectedItemindex + 1;
+		}
+		else
+		{
+			targetIndex = m_currentBookmarkFolder->GetChildren().size();
+		}
 	}
 	else
 	{

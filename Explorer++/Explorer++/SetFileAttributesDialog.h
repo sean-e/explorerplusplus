@@ -4,17 +4,17 @@
 
 #pragma once
 
-#include <list>
-#include "../Helper/BaseDialog.h"
+#include "DarkModeDialogBase.h"
 #include "../Helper/DialogSettings.h"
+#include <list>
 
 namespace NSetFileAttributesDialogExternal
 {
-	struct SetFileAttributesInfo_t
-	{
-		TCHAR			szFullFileName[MAX_PATH];
-		WIN32_FIND_DATA	wfd;
-	};
+struct SetFileAttributesInfo
+{
+	TCHAR szFullFileName[MAX_PATH];
+	WIN32_FIND_DATA wfd;
+};
 }
 
 class SetFileAttributesDialog;
@@ -22,39 +22,36 @@ class SetFileAttributesDialog;
 class SetFileAttributesDialogPersistentSettings : public DialogSettings
 {
 public:
-
 	static SetFileAttributesDialogPersistentSettings &GetInstance();
 
 private:
-
 	friend SetFileAttributesDialog;
 
 	static const TCHAR SETTINGS_KEY[];
 
 	SetFileAttributesDialogPersistentSettings();
 
-	SetFileAttributesDialogPersistentSettings(const SetFileAttributesDialogPersistentSettings &);
-	SetFileAttributesDialogPersistentSettings & operator=(const SetFileAttributesDialogPersistentSettings &);
+	SetFileAttributesDialogPersistentSettings(
+		const SetFileAttributesDialogPersistentSettings &) = delete;
+	SetFileAttributesDialogPersistentSettings &operator=(
+		const SetFileAttributesDialogPersistentSettings &) = delete;
 };
 
-class SetFileAttributesDialog : public BaseDialog
+class SetFileAttributesDialog : public DarkModeDialogBase
 {
 public:
-
 	SetFileAttributesDialog(HINSTANCE hInstance, HWND hParent,
-		const std::list<NSetFileAttributesDialogExternal::SetFileAttributesInfo_t> &sfaiList);
+		const std::list<NSetFileAttributesDialogExternal::SetFileAttributesInfo> &sfaiList);
 
 protected:
+	INT_PTR OnInitDialog() override;
+	INT_PTR OnCommand(WPARAM wParam, LPARAM lParam) override;
+	INT_PTR OnNotify(NMHDR *pnmhdr) override;
+	INT_PTR OnClose() override;
 
-	INT_PTR	OnInitDialog() override;
-	INT_PTR	OnCommand(WPARAM wParam,LPARAM lParam) override;
-	INT_PTR	OnNotify(NMHDR *pnmhdr) override;
-	INT_PTR	OnClose() override;
-
-	void	SaveState() override;
+	void SaveState() override;
 
 private:
-
 	typedef struct
 	{
 		DWORD Attribute;
@@ -74,26 +71,26 @@ private:
 		Accessed
 	};
 
-	void	InitializeAttributesStructure();
+	void InitializeAttributesStructure();
 
-	void	ResetButtonState(HWND hwnd,BOOL bReset);
-	void	SetAttributeCheckState(HWND hwnd,int nAttributes,int nSelected);
+	void ResetButtonState(HWND hwnd, BOOL bReset);
+	void SetAttributeCheckState(HWND hwnd, int nAttributes, int nSelected);
 
-	void	InitializeDateFields();
-	void	OnDateReset(DateTimeType dateTimeType);
-	void	OnOk();
-	void	OnCancel();
+	void InitializeDateFields();
+	void OnDateReset(DateTimeType dateTimeType);
+	void OnOk();
+	void OnCancel();
 
-	std::list<NSetFileAttributesDialogExternal::SetFileAttributesInfo_t>	m_FileList;
-	std::list<Attribute_t>	m_AttributeList;
+	std::list<NSetFileAttributesDialogExternal::SetFileAttributesInfo> m_FileList;
+	std::list<Attribute_t> m_AttributeList;
 
-	SetFileAttributesDialogPersistentSettings	*m_psfadps;
+	SetFileAttributesDialogPersistentSettings *m_psfadps;
 
 	SYSTEMTIME m_LocalWrite;
 	SYSTEMTIME m_LocalCreation;
 	SYSTEMTIME m_LocalAccess;
 
-	BOOL	m_bModificationDateEnabled;
-	BOOL	m_bCreationDateEnabled;
-	BOOL	m_bAccessDateEnabled;
+	BOOL m_bModificationDateEnabled;
+	BOOL m_bCreationDateEnabled;
+	BOOL m_bAccessDateEnabled;
 };

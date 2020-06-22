@@ -33,15 +33,15 @@ ShellTreeView::ShellTreeView(HWND hTreeView, HWND hParent, IDirectoryMonitor *pD
 	m_iRefCount(1),
 	m_itemIDCounter(0),
 	m_bDragDropRegistered(FALSE),
-	m_iconThreadPool(1),
+	m_iconThreadPool(1, std::bind(CoInitializeEx, nullptr, COINIT_APARTMENTTHREADED), CoUninitialize),
 	m_iconResultIDCounter(0),
-	m_subfoldersThreadPool(1),
+	m_subfoldersThreadPool(1, std::bind(CoInitializeEx, nullptr, COINIT_APARTMENTTHREADED), CoUninitialize),
 	m_subfoldersResultIDCounter(0)
 {
-	m_windowSubclasses.emplace_back(m_hTreeView, TreeViewProcStub, SUBCLASS_ID,
-		reinterpret_cast<DWORD_PTR>(this));
-	m_windowSubclasses.emplace_back(hParent, ParentWndProcStub, PARENT_SUBCLASS_ID,
-		reinterpret_cast<DWORD_PTR>(this));
+	m_windowSubclasses.push_back(std::make_unique<WindowSubclassWrapper>(
+		m_hTreeView, TreeViewProcStub, SUBCLASS_ID, reinterpret_cast<DWORD_PTR>(this)));
+	m_windowSubclasses.push_back(std::make_unique<WindowSubclassWrapper>(
+		hParent, ParentWndProcStub, PARENT_SUBCLASS_ID, reinterpret_cast<DWORD_PTR>(this)));
 
 	InitializeCriticalSection(&m_cs);
 
@@ -51,15 +51,6 @@ ShellTreeView::ShellTreeView(HWND hTreeView, HWND hParent, IDirectoryMonitor *pD
 	m_bDragCancelled	= FALSE;
 	m_bDragAllowed		= FALSE;
 	m_bShowHidden		= TRUE;
-
-	auto initializeComTask = [] (int id) {
-		UNREFERENCED_PARAMETER(id);
-
-		CoInitializeEx(nullptr, COINIT_APARTMENTTHREADED);
-	};
-
-	m_iconThreadPool.push(initializeComTask);
-	m_subfoldersThreadPool.push(initializeComTask);
 
 	AddRoot();
 
@@ -75,15 +66,6 @@ ShellTreeView::~ShellTreeView()
 	DeleteCriticalSection(&m_cs);
 
 	m_iconThreadPool.clear_queue();
-
-	auto uninitializeComTask = [] (int id) {
-		UNREFERENCED_PARAMETER(id);
-
-		CoUninitialize();
-	};
-
-	m_iconThreadPool.push(uninitializeComTask);
-	m_subfoldersThreadPool.push(uninitializeComTask);
 }
 
 LRESULT CALLBACK ShellTreeView::TreeViewProcStub(HWND hwnd, UINT uMsg, WPARAM wParam,

@@ -45,30 +45,39 @@ BOOL CenterWindow(HWND hParent, HWND hChild)
 		return FALSE;
 	}
 
-	return SetWindowPos(hChild, NULL, ptOrigin.x, ptOrigin.y,
+	return SetWindowPos(hChild, nullptr, ptOrigin.x, ptOrigin.y,
 		0, 0, SWP_NOSIZE | SWP_SHOWWINDOW | SWP_NOZORDER);
 }
 
-void GetWindowString(HWND hwnd, std::wstring &str)
+std::wstring GetWindowString(HWND hwnd)
 {
-	int iLen = GetWindowTextLength(hwnd);
+	int textLength = GetWindowTextLength(hwnd);
 
-	auto *szTemp = new TCHAR[iLen + 1];
-	GetWindowText(hwnd, szTemp, iLen + 1);
+	if (textLength == 0)
+	{
+		return {};
+	}
 
-	str = szTemp;
+	std::wstring text;
+	text.resize(textLength + 1);
 
-	delete[] szTemp;
+	GetWindowText(hwnd, text.data(), static_cast<int>(text.capacity()));
+
+	return text;
 }
 
 BOOL lShowWindow(HWND hwnd, BOOL bShowWindow)
 {
 	int windowShowState;
 
-	if(bShowWindow)
+	if (bShowWindow)
+	{
 		windowShowState = SW_SHOW;
+	}
 	else
+	{
 		windowShowState = SW_HIDE;
+	}
 
 	return ShowWindow(hwnd, windowShowState);
 }
@@ -85,14 +94,18 @@ BOOL AddWindowStyle(HWND hwnd, UINT fStyle, BOOL bAdd)
 	if(bAdd)
 	{
 		/* Only add the style if it isn't already present. */
-		if((fCurrentStyle & fStyle) != fStyle)
+		if ((fCurrentStyle & fStyle) != fStyle)
+		{
 			fCurrentStyle |= fStyle;
+		}
 	}
 	else
 	{
 		/* Only remove the style if it is present. */
-		if((fCurrentStyle & fStyle) == fStyle)
+		if ((fCurrentStyle & fStyle) == fStyle)
+		{
 			fCurrentStyle &= ~static_cast<LONG_PTR>(fStyle);
+		}
 	}
 
 	/* See the documentation for SetWindowLongPtr

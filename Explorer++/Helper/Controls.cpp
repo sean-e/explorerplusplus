@@ -4,16 +4,25 @@
 
 #include "stdafx.h"
 #include "Controls.h"
-#include "WindowHelper.h"
+#include "DpiCompatibility.h"
 #include "Macros.h"
+#include "WindowHelper.h"
+#include <VSStyle.h>
+#include <uxtheme.h>
+#include <wil/resource.h>
 
+constexpr int DEFAULT_CHECKBOX_WIDTH = 13;
+constexpr int DEFAULT_CHECKBOX_HEIGHT = 13;
+
+constexpr int DEFAULT_RADIO_BUTTON_WIDTH = 13;
+constexpr int DEFAULT_RADIO_BUTTON_HEIGHT = 13;
 
 HWND CreateListView(HWND hParent, DWORD dwStyle)
 {
 	HWND hListView = CreateWindow(WC_LISTVIEW, EMPTY_STRING, dwStyle,
-		0, 0, 0, 0, hParent, NULL, GetModuleHandle(0), NULL);
+		0, 0, 0, 0, hParent, nullptr, GetModuleHandle(nullptr), nullptr);
 
-	if(hListView != NULL)
+	if(hListView != nullptr)
 	{
 		/* Set the extended hListView styles. These styles can't be set
 		properly with CreateWindowEx(). */
@@ -26,13 +35,13 @@ HWND CreateListView(HWND hParent, DWORD dwStyle)
 HWND CreateTreeView(HWND hParent, DWORD dwStyle)
 {
 	HWND hTreeView = CreateWindow(WC_TREEVIEW, EMPTY_STRING, dwStyle,
-		0, 0, 0, 0, hParent, NULL, GetModuleHandle(0), NULL);
+		0, 0, 0, 0, hParent, nullptr, GetModuleHandle(nullptr), nullptr);
 
-	if(hTreeView != NULL)
+	if(hTreeView != nullptr)
 	{
 		/* Retrieve the small version of the system image list. */
 		HIMAGELIST smallIcons;
-		BOOL bRet = Shell_GetImageLists(NULL, &smallIcons);
+		BOOL bRet = Shell_GetImageLists(nullptr, &smallIcons);
 
 		if(bRet)
 		{
@@ -46,7 +55,7 @@ HWND CreateTreeView(HWND hParent, DWORD dwStyle)
 HWND CreateStatusBar(HWND hParent, DWORD dwStyle)
 {
 	HWND hStatusBar = CreateWindow(STATUSCLASSNAME, EMPTY_STRING, dwStyle,
-		0, 0, 0, 0, hParent, NULL, GetModuleHandle(0), NULL);
+		0, 0, 0, 0, hParent, nullptr, GetModuleHandle(nullptr), nullptr);
 
 	return hStatusBar;
 }
@@ -54,9 +63,9 @@ HWND CreateStatusBar(HWND hParent, DWORD dwStyle)
 HWND CreateToolbar(HWND hParent, DWORD dwStyle, DWORD dwExStyle)
 {
 	HWND hToolbar = CreateWindow(TOOLBARCLASSNAME, EMPTY_STRING, dwStyle,
-		0, 0, 0, 0, hParent, NULL, GetModuleHandle(NULL), NULL);
+		0, 0, 0, 0, hParent, nullptr, GetModuleHandle(nullptr), nullptr);
 
-	if(hToolbar != NULL)
+	if(hToolbar != nullptr)
 	{
 		/* Set the extended styles for the toolbar. */
 		SendMessage(hToolbar, TB_SETEXTENDEDSTYLE, 0, dwExStyle);
@@ -68,8 +77,8 @@ HWND CreateToolbar(HWND hParent, DWORD dwStyle, DWORD dwExStyle)
 HWND CreateComboBox(HWND parent, DWORD dwStyle)
 {
 	HWND hComboBox = CreateWindowEx(WS_EX_TOOLWINDOW, WC_COMBOBOXEX,
-		EMPTY_STRING, dwStyle, 0, 0, 0, 200, parent, NULL,
-		GetModuleHandle(0), NULL);
+		EMPTY_STRING, dwStyle, 0, 0, 0, 200, parent, nullptr,
+		GetModuleHandle(nullptr), nullptr);
 
 	return hComboBox;
 }
@@ -77,7 +86,7 @@ HWND CreateComboBox(HWND parent, DWORD dwStyle)
 HWND CreateTabControl(HWND hParent, DWORD dwStyle)
 {
 	HWND hTabControl = CreateWindowEx(0, WC_TABCONTROL, EMPTY_STRING,
-		dwStyle, 0, 0, 0, 0, hParent, NULL, GetModuleHandle(0), NULL);
+		dwStyle, 0, 0, 0, 0, hParent, nullptr, GetModuleHandle(nullptr), nullptr);
 
 	return hTabControl;
 }
@@ -100,7 +109,7 @@ BOOL PinStatusBar(HWND hStatusBar, int width, int height)
 	if(bRet)
 	{
 		/* Pin the status bar to the bottom of the window. */
-		bRet = SetWindowPos(hStatusBar, NULL, 0, height - GetRectHeight(&rc),
+		bRet = SetWindowPos(hStatusBar, nullptr, 0, height - GetRectHeight(&rc),
 			width, GetRectHeight(&rc), SWP_NOZORDER);
 	}
 
@@ -110,7 +119,7 @@ BOOL PinStatusBar(HWND hStatusBar, int width, int height)
 BOOL AddPathsToComboBoxEx(HWND hComboBoxEx, const TCHAR *path)
 {
 	HIMAGELIST smallIcons;
-	BOOL bRet = Shell_GetImageLists(NULL, &smallIcons);
+	BOOL bRet = Shell_GetImageLists(nullptr, &smallIcons);
 
 	if(!bRet)
 	{
@@ -149,7 +158,7 @@ BOOL AddPathsToComboBoxEx(HWND hComboBoxEx, const TCHAR *path)
 			TCHAR fullFileName[MAX_PATH];
 			LPTSTR szRet = PathCombine(fullFileName, path, wfd.cFileName);
 
-			if(szRet == NULL)
+			if(szRet == nullptr)
 			{
 				success = FALSE;
 				break;
@@ -268,4 +277,43 @@ void UpdateToolbarBandSizing(HWND hRebar, HWND hToolbar)
 		rbbi.cxIdeal = sz.cx;
 		SendMessage(hRebar, RB_SETBANDINFO, iBand, reinterpret_cast<LPARAM>(&rbbi));
 	}
+}
+
+SIZE GetCheckboxSize(HWND hwnd)
+{
+	return GetButtonSize(
+		hwnd, BP_CHECKBOX, CBS_UNCHECKEDNORMAL, DEFAULT_CHECKBOX_WIDTH, DEFAULT_CHECKBOX_HEIGHT);
+}
+
+SIZE GetRadioButtonSize(HWND hwnd)
+{
+	return GetButtonSize(hwnd, BP_RADIOBUTTON, RBS_UNCHECKEDNORMAL, DEFAULT_RADIO_BUTTON_WIDTH,
+		DEFAULT_RADIO_BUTTON_HEIGHT);
+}
+
+SIZE GetButtonSize(HWND hwnd, int partId, int stateId, int defaultWidth, int defaultHeight)
+{
+	if (IsAppThemed())
+	{
+		wil::unique_htheme theme(OpenThemeData(hwnd, L"BUTTON"));
+
+		if (theme)
+		{
+			wil::unique_hdc screenDC(GetDC(nullptr));
+
+			SIZE size;
+			HRESULT hr = GetThemePartSize(
+				theme.get(), screenDC.get(), partId, stateId, nullptr, TS_DRAW, &size);
+
+			if (SUCCEEDED(hr))
+			{
+				return size;
+			}
+		}
+	}
+
+	DpiCompatibility dpiCompat;
+	UINT dpi = dpiCompat.GetDpiForWindow(hwnd);
+	return { MulDiv(defaultWidth, dpi, USER_DEFAULT_SCREEN_DPI),
+		MulDiv(defaultHeight, dpi, USER_DEFAULT_SCREEN_DPI) };
 }

@@ -4,28 +4,29 @@
 
 #pragma once
 
-#include <objbase.h>
 #include <MsXml2.h>
+#include <objbase.h>
 
 namespace NColorRuleHelper
 {
-	struct ColorRule_t
+	struct ColorRule
 	{
-		std::wstring	strDescription;
+		std::wstring strDescription;
 
 		/* Filename and attribute filtering. */
-		std::wstring	strFilterPattern;
-		BOOL			caseInsensitive;
-		DWORD			dwFilterAttributes;
+		std::wstring strFilterPattern;
+		BOOL caseInsensitive;
+		DWORD dwFilterAttributes;
 
-		COLORREF		rgbColour;
+		COLORREF rgbColour;
 	};
 
-	std::vector<ColorRule_t> GetDefaultColorRules();
+	std::vector<ColorRule> GetDefaultColorRules();
 
-	void	LoadColorRulesFromRegistry(std::vector<ColorRule_t> &ColorRules);
-	void	SaveColorRulesToRegistry(const std::vector<ColorRule_t> &ColorRules);
+	void LoadColorRulesFromRegistry(std::vector<ColorRule> &ColorRules);
+	void SaveColorRulesToRegistry(const std::vector<ColorRule> &ColorRules);
 
-	void	LoadColorRulesFromXML(IXMLDOMDocument *pXMLDom,std::vector<ColorRule_t> &ColorRules);
-	void	SaveColorRulesToXML(IXMLDOMDocument *pXMLDom,IXMLDOMElement *pRoot,const std::vector<ColorRule_t> &ColorRules);
+	void LoadColorRulesFromXML(IXMLDOMDocument *pXMLDom, std::vector<ColorRule> &ColorRules);
+	void SaveColorRulesToXML(
+		IXMLDOMDocument *pXMLDom, IXMLDOMElement *pRoot, const std::vector<ColorRule> &ColorRules);
 }

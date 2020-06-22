@@ -5,6 +5,7 @@
 #include "stdafx.h"
 #include "Explorer++.h"
 #include "Config.h"
+#include "DarkModeHelper.h"
 #include "MainResource.h"
 #include "ShellBrowser/ShellBrowser.h"
 #include "TabContainer.h"
@@ -34,6 +35,14 @@ void Explorerplusplus::CreateStatusBar()
 	}
 
 	SetStatusBarParts(width);
+
+	auto &darkModeHelper = DarkModeHelper::GetInstance();
+
+	if (darkModeHelper.IsDarkModeEnabled())
+	{
+		darkModeHelper.AllowDarkModeForWindow(m_hStatusBar, true);
+		SetWindowTheme(m_hStatusBar, nullptr, L"ExplorerStatusBar");
+	}
 }
 
 void Explorerplusplus::SetStatusBarParts(int width)
@@ -193,7 +202,9 @@ HRESULT Explorerplusplus::UpdateStatusBarText(const Tab &tab)
 	res = CreateDriveFreeSpaceString(m_CurrentDirectory.c_str(), szBuffer, SIZEOF_ARRAY(szBuffer));
 
 	if (res == -1)
+	{
 		StringCchCopy(szBuffer, SIZEOF_ARRAY(szBuffer), EMPTY_STRING);
+	}
 
 	SendMessage(m_hStatusBar, SB_SETTEXT, (WPARAM)2 | 0, (LPARAM)szBuffer);
 
@@ -225,9 +236,13 @@ int Explorerplusplus::CreateDriveFreeSpaceString(const TCHAR *szPath, TCHAR *szB
 		_T("%s %s (%.0f%%)"), szFreeSpace, szFree, totalNumberOfFreeBytes.QuadPart * 100.0 / totalNumberOfBytes.QuadPart);
 
 	if (nBuffer > lstrlen(szFreeSpaceString))
+	{
 		StringCchCopy(szBuffer, nBuffer, szFreeSpaceString);
+	}
 	else
+	{
 		szBuffer = nullptr;
+	}
 
 	return lstrlen(szFreeSpaceString);
 }

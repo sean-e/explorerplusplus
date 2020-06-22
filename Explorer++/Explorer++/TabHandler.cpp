@@ -132,13 +132,17 @@ HRESULT Explorerplusplus::RestoreTabs(ILoadSave *pLoadSave)
 			hr = m_tabContainer->CreateNewTab(szDirectory, TabSettings(_selected = true));
 
 			if (hr == S_OK)
+			{
 				nTabsCreated++;
+			}
 		}
 	}
 	else
 	{
 		if (m_config->startupMode == StartupMode::PreviousTabs)
+		{
 			nTabsCreated = pLoadSave->LoadPreviousTabs();
+		}
 	}
 
 	if (nTabsCreated == 0)
@@ -161,7 +165,7 @@ HRESULT Explorerplusplus::RestoreTabs(ILoadSave *pLoadSave)
 	{
 		if (nTabsCreated == 1)
 		{
-			m_bShowTabBar = FALSE;
+			m_bShowTabBar = false;
 		}
 	}
 
@@ -213,9 +217,13 @@ void Explorerplusplus::OnSelectTabByIndex(int iTab)
 	else
 	{
 		if (iTab < nTabs)
+		{
 			newIndex = iTab;
+		}
 		else
+		{
 			newIndex = nTabs - 1;
+		}
 	}
 
 	m_tabContainer->SelectTabAtIndex(newIndex);
@@ -229,13 +237,13 @@ bool Explorerplusplus::OnCloseTab()
 
 void Explorerplusplus::ShowTabBar()
 {
-	m_bShowTabBar = TRUE;
+	m_bShowTabBar = true;
 	UpdateLayout();
 }
 
 void Explorerplusplus::HideTabBar()
 {
-	m_bShowTabBar = FALSE;
+	m_bShowTabBar = false;
 	UpdateLayout();
 }
 

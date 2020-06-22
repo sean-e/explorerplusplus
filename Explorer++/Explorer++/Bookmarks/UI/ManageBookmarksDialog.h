@@ -5,8 +5,8 @@
 #pragma once
 
 #include "Bookmarks/UI/BookmarkListView.h"
+#include "DarkModeDialogBase.h"
 #include "ResourceHelper.h"
-#include "../Helper/BaseDialog.h"
 #include "../Helper/DialogSettings.h"
 #include "../Helper/ResizableDialog.h"
 #include <boost/signals2.hpp>
@@ -15,9 +15,11 @@
 class BookmarkNavigationController;
 class BookmarkTree;
 class BookmarkTreeView;
+class IconFetcher;
 __interface IExplorerplusplus;
 class ManageBookmarksDialog;
 class Navigation;
+class WindowSubclassWrapper;
 
 class ManageBookmarksDialogPersistentSettings : public DialogSettings
 {
@@ -44,18 +46,17 @@ private:
 	std::unordered_set<std::wstring> m_setExpansion;
 };
 
-class ManageBookmarksDialog : public BaseDialog
+class ManageBookmarksDialog : public DarkModeDialogBase
 {
 public:
 	ManageBookmarksDialog(HINSTANCE hInstance, HWND hParent, IExplorerplusplus *pexpp,
-		Navigation *navigation, BookmarkTree *bookmarkTree);
+		Navigation *navigation, IconFetcher *iconFetcher, BookmarkTree *bookmarkTree);
 	~ManageBookmarksDialog();
 
 protected:
 	INT_PTR OnInitDialog() override;
 	INT_PTR OnAppCommand(HWND hwnd, UINT uCmd, UINT uDevice, DWORD dwKeys) override;
 	INT_PTR OnCommand(WPARAM wParam, LPARAM lParam) override;
-	INT_PTR OnNotify(NMHDR *pnmhdr) override;
 	INT_PTR OnClose() override;
 	INT_PTR OnDestroy() override;
 	INT_PTR OnNcDestroy() override;
@@ -73,11 +74,14 @@ private:
 	ManageBookmarksDialog &operator=(const ManageBookmarksDialog &mbd);
 
 	void GetResizableControlInformation(BaseDialog::DialogSizeConstraint &dsc,
-		std::list<ResizableDialog::Control_t> &controlList) override;
+		std::list<ResizableDialog::Control> &controlList) override;
 
 	void SetupToolbar();
 	void SetupTreeView();
 	void SetupListView();
+
+	LRESULT CALLBACK ParentWndProc(HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam);
+	std::optional<LRESULT> OnToolbarCustomDraw(NMTBCUSTOMDRAW *customDraw);
 
 	void OnTreeViewSelectionChanged(BookmarkItem *bookmarkFolder);
 	void OnListViewNavigation(BookmarkItem *bookmarkFolder, bool addHistoryEntry);
@@ -107,12 +111,14 @@ private:
 	void OnOk();
 	void OnCancel();
 
+	HWND m_toolbarParent;
 	HWND m_hToolbar;
 	wil::unique_himagelist m_imageListToolbar;
 	IconImageListMapping m_imageListToolbarMappings;
 
 	IExplorerplusplus *m_pexpp;
 	Navigation *m_navigation;
+	IconFetcher *m_iconFetcher;
 
 	BookmarkTree *m_bookmarkTree;
 
@@ -123,6 +129,7 @@ private:
 
 	std::unique_ptr<BookmarkNavigationController> m_navigationController;
 
+	std::vector<std::unique_ptr<WindowSubclassWrapper>> m_windowSubclasses;
 	std::vector<boost::signals2::scoped_connection> m_connections;
 
 	ManageBookmarksDialogPersistentSettings *m_persistentSettings;

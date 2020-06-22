@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include "../Helper/BaseDialog.h"
+#include "DarkModeDialogBase.h"
 #include "../Helper/DialogSettings.h"
 #include "../Helper/ResizableDialog.h"
 #include <wil/resource.h>
@@ -19,58 +19,55 @@ class WildcardSelectDialog;
 class WildcardSelectDialogPersistentSettings : public DialogSettings
 {
 public:
-
-	static			WildcardSelectDialogPersistentSettings &GetInstance();
+	static WildcardSelectDialogPersistentSettings &GetInstance();
 
 private:
+	friend WildcardSelectDialog;
 
-	friend			WildcardSelectDialog;
+	static const TCHAR SETTINGS_KEY[];
 
-	static const	TCHAR SETTINGS_KEY[];
-
-	static const	TCHAR SETTING_PATTERN_LIST[];
-	static const	TCHAR SETTING_CURRENT_TEXT[];
+	static const TCHAR SETTING_PATTERN_LIST[];
+	static const TCHAR SETTING_CURRENT_TEXT[];
 
 	WildcardSelectDialogPersistentSettings();
 
-	WildcardSelectDialogPersistentSettings(const WildcardSelectDialogPersistentSettings &);
-	WildcardSelectDialogPersistentSettings & operator=(const WildcardSelectDialogPersistentSettings &);
+	WildcardSelectDialogPersistentSettings(const WildcardSelectDialogPersistentSettings &) = delete;
+	WildcardSelectDialogPersistentSettings &operator=(
+		const WildcardSelectDialogPersistentSettings &) = delete;
 
-	void			SaveExtraRegistrySettings(HKEY hKey) override;
-	void			LoadExtraRegistrySettings(HKEY hKey) override;
+	void SaveExtraRegistrySettings(HKEY hKey) override;
+	void LoadExtraRegistrySettings(HKEY hKey) override;
 
-	void			SaveExtraXMLSettings(IXMLDOMDocument *pXMLDom, IXMLDOMElement *pParentNode) override;
-	void			LoadExtraXMLSettings(BSTR bstrName, BSTR bstrValue) override;
+	void SaveExtraXMLSettings(IXMLDOMDocument *pXMLDom, IXMLDOMElement *pParentNode) override;
+	void LoadExtraXMLSettings(BSTR bstrName, BSTR bstrValue) override;
 
-	TCHAR			m_szPattern[256];
-	std::list<std::wstring>	m_PatternList;
+	TCHAR m_szPattern[256];
+	std::list<std::wstring> m_PatternList;
 };
 
-class WildcardSelectDialog : public BaseDialog
+class WildcardSelectDialog : public DarkModeDialogBase
 {
 public:
-
 	WildcardSelectDialog(HINSTANCE hInstance, HWND hParent, BOOL bSelect, IExplorerplusplus *pexpp);
 
 protected:
-
-	INT_PTR	OnInitDialog() override;
-	INT_PTR	OnCommand(WPARAM wParam,LPARAM lParam) override;
-	INT_PTR	OnClose() override;
+	INT_PTR OnInitDialog() override;
+	INT_PTR OnCommand(WPARAM wParam, LPARAM lParam) override;
+	INT_PTR OnClose() override;
 
 private:
+	void GetResizableControlInformation(BaseDialog::DialogSizeConstraint &dsc,
+		std::list<ResizableDialog::Control> &controlList) override;
+	void SaveState() override;
 
-	void				GetResizableControlInformation(BaseDialog::DialogSizeConstraint &dsc, std::list<ResizableDialog::Control_t> &controlList) override;
-	void				SaveState() override;
+	void OnOk();
+	void OnCancel();
+	void SelectItems(TCHAR *szPattern);
 
-	void				OnOk();
-	void				OnCancel();
-	void				SelectItems(TCHAR *szPattern);
+	IExplorerplusplus *m_pexpp;
+	BOOL m_bSelect;
 
-	IExplorerplusplus	*m_pexpp;
-	BOOL				m_bSelect;
+	wil::unique_hicon m_icon;
 
-	wil::unique_hicon	m_icon;
-
-	WildcardSelectDialogPersistentSettings	*m_pwsdps;
+	WildcardSelectDialogPersistentSettings *m_pwsdps;
 };

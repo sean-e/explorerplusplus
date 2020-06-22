@@ -7,6 +7,7 @@
 #include "AddressBar.h"
 #include "ColorRuleHelper.h"
 #include "Config.h"
+#include "DarkModeHelper.h"
 #include "Explorer++_internal.h"
 #include "LoadSaveRegistry.h"
 #include "LoadSaveXml.h"
@@ -45,8 +46,6 @@ static const int TREEVIEW_X_CLEARANCE = 1;
 the treeview and the holder window. */
 static const int TREEVIEW_HOLDER_CLEARANCE = 4;
 
-const int CLOSE_TOOLBAR_WIDTH = 24;
-const int CLOSE_TOOLBAR_HEIGHT = 24;
 const int CLOSE_TOOLBAR_X_OFFSET = 4;
 const int CLOSE_TOOLBAR_Y_OFFSET = 1;
 
@@ -454,8 +453,9 @@ BOOL Explorerplusplus::OnSize(int MainWindowWidth,int MainWindowHeight)
 		iHolderWidth - TREEVIEW_HOLDER_CLEARANCE - TREEVIEW_X_CLEARANCE,
 		iHolderHeight - tabWindowHeight,SWP_NOZORDER);
 
-	SetWindowPos(m_hFoldersToolbar, nullptr, iHolderWidth - scaledCloseToolbarWidth - scaledCloseToolbarXOffset,
-		scaledCloseToolbarYOffset, scaledCloseToolbarWidth, scaledCloseToolbarHeight, SWP_SHOWWINDOW | SWP_NOZORDER);
+	SetWindowPos(m_foldersToolbarParent, nullptr,
+		iHolderWidth - scaledCloseToolbarWidth - scaledCloseToolbarXOffset,
+		scaledCloseToolbarYOffset, 0, 0, SWP_SHOWWINDOW | SWP_NOZORDER | SWP_NOSIZE);
 
 
 	/* <---- Display window ----> */
@@ -516,6 +516,25 @@ void Explorerplusplus::OnDpiChanged(const RECT *updatedWindowRect)
 	SetWindowPos(m_hContainer, nullptr, updatedWindowRect->left, updatedWindowRect->top,
 		GetRectWidth(updatedWindowRect), GetRectHeight(updatedWindowRect),
 		SWP_NOZORDER | SWP_NOACTIVATE);
+}
+
+std::optional<LRESULT> Explorerplusplus::OnCtlColorStatic(HWND hwnd, HDC hdc)
+{
+	UNREFERENCED_PARAMETER(hdc);
+
+	if (hwnd == m_hTabBacking)
+	{
+		auto &darkModeHelper = DarkModeHelper::GetInstance();
+
+		if (!darkModeHelper.IsDarkModeEnabled())
+		{
+			return std::nullopt;
+		}
+
+		return reinterpret_cast<INT_PTR>(m_tabBarBackgroundBrush.get());
+	}
+
+	return std::nullopt;
 }
 
 int Explorerplusplus::OnDestroy()
@@ -657,7 +676,7 @@ void Explorerplusplus::OnChangeCBChain(WPARAM wParam,LPARAM lParam)
 
 void Explorerplusplus::HandleDirectoryMonitoring(int iTabId)
 {
-	DirectoryAltered_t	*pDirectoryAltered = nullptr;
+	DirectoryAltered	*pDirectoryAltered = nullptr;
 	int					iDirMonitorId;
 
 	Tab &tab = m_tabContainer->GetTab(iTabId);
@@ -677,7 +696,7 @@ void Explorerplusplus::HandleDirectoryMonitoring(int iTabId)
 	}
 	else
 	{
-		pDirectoryAltered = (DirectoryAltered_t *)malloc(sizeof(DirectoryAltered_t));
+		pDirectoryAltered = (DirectoryAltered *)malloc(sizeof(DirectoryAltered));
 
 		pDirectoryAltered->iIndex		= iTabId;
 		pDirectoryAltered->iFolderIndex	= tab.GetShellBrowser()->GetUniqueFolderId();
@@ -968,7 +987,7 @@ void Explorerplusplus::CopyColumnInfoToClipboard()
 		if(column.bChecked)
 		{
 			TCHAR szText[64];
-			LoadString(m_hLanguageModule,ShellBrowser::LookupColumnNameStringIndex(column.id),szText,SIZEOF_ARRAY(szText));
+			LoadString(m_hLanguageModule,ShellBrowser::LookupColumnNameStringIndex(column.type),szText,SIZEOF_ARRAY(szText));
 
 			strColumnInfo += std::wstring(szText) + _T("\t");
 

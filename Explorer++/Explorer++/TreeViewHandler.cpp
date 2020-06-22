@@ -5,6 +5,7 @@
 #include "stdafx.h"
 #include "Explorer++.h"
 #include "Config.h"
+#include "DarkModeHelper.h"
 #include "HolderWindow.h"
 #include "MainResource.h"
 #include "MainToolbar.h"
@@ -37,8 +38,10 @@ void Explorerplusplus::CreateFolderControls()
 	TCHAR szTemp[32];
 	UINT uStyle = WS_CHILD|WS_CLIPSIBLINGS|WS_CLIPCHILDREN;
 
-	if(m_config->showFolders)
+	if (m_config->showFolders)
+	{
 		uStyle |= WS_VISIBLE;
+	}
 
 	LoadString(m_hLanguageModule,IDS_FOLDERS_WINDOW_TEXT,szTemp,SIZEOF_ARRAY(szTemp));
 	m_hHolder = CreateHolderWindow(m_hContainer,szTemp,uStyle);
@@ -47,9 +50,24 @@ void Explorerplusplus::CreateFolderControls()
 	m_hTreeView = CreateTreeView(m_hHolder,WS_CHILD|WS_VISIBLE|TVS_SHOWSELALWAYS|
 		TVS_HASBUTTONS|TVS_EDITLABELS|TVS_HASLINES|TVS_TRACKSELECT);
 
-	SetWindowTheme(m_hTreeView,L"Explorer", nullptr);
+	auto &darkModeHelper = DarkModeHelper::GetInstance();
 
-	SetWindowLongPtr(m_hTreeView,GWL_EXSTYLE,WS_EX_CLIENTEDGE);
+	if (DarkModeHelper::GetInstance().IsDarkModeEnabled())
+	{
+		darkModeHelper.AllowDarkModeForWindow(m_hTreeView, true);
+
+		TreeView_SetBkColor(m_hTreeView, TREE_VIEW_DARK_MODE_BACKGROUND_COLOR);
+		TreeView_SetTextColor(m_hTreeView, DarkModeHelper::FOREGROUND_COLOR);
+
+		InvalidateRect(m_hTreeView, nullptr, TRUE);
+
+		HWND tooltips = TreeView_GetToolTips(m_hTreeView);
+		darkModeHelper.AllowDarkModeForWindow(tooltips, true);
+		SetWindowTheme(tooltips, L"Explorer", nullptr);
+	}
+
+	SetWindowTheme(m_hTreeView, L"Explorer", nullptr);
+
 	m_shellTreeView = new ShellTreeView(m_hTreeView, m_hHolder, m_pDirMon, &m_cachedIcons);
 
 	/* Now, subclass the treeview again. This is needed for messages
@@ -57,8 +75,26 @@ void Explorerplusplus::CreateFolderControls()
 	reach the window procedure provided by ShellTreeView. */
 	SetWindowSubclass(m_hTreeView,TreeViewSubclassStub,1,(DWORD_PTR)this);
 
-	m_hFoldersToolbar = CreateTabToolbar(m_hHolder, FOLDERS_TOOLBAR_CLOSE,
+	m_foldersToolbarParent =
+		CreateWindow(WC_STATIC, EMPTY_STRING, WS_VISIBLE | WS_CHILD | WS_CLIPSIBLINGS, 0, 0, 0, 0,
+			m_hHolder, nullptr, GetModuleHandle(nullptr), nullptr);
+
+	m_windowSubclasses.push_back(std::make_unique<WindowSubclassWrapper>(m_foldersToolbarParent,
+		std::bind(&Explorerplusplus::FoldersToolbarParentProc, this, std::placeholders::_1,
+			std::placeholders::_2, std::placeholders::_3, std::placeholders::_4),
+		0));
+
+	m_hFoldersToolbar = CreateTabToolbar(m_foldersToolbarParent, FOLDERS_TOOLBAR_CLOSE,
 		ResourceHelper::LoadString(m_hLanguageModule, IDS_HIDEFOLDERSPANE));
+
+	UINT dpi = m_dpiCompat.GetDpiForWindow(m_hHolder);
+
+	int scaledCloseToolbarWidth = MulDiv(CLOSE_TOOLBAR_WIDTH, dpi, USER_DEFAULT_SCREEN_DPI);
+	int scaledCloseToolbarHeight = MulDiv(CLOSE_TOOLBAR_HEIGHT, dpi, USER_DEFAULT_SCREEN_DPI);
+	SetWindowPos(m_foldersToolbarParent, nullptr, 0, 0, scaledCloseToolbarWidth,
+		scaledCloseToolbarHeight, SWP_NOZORDER);
+	SetWindowPos(m_hFoldersToolbar, nullptr, 0, 0, scaledCloseToolbarWidth,
+		scaledCloseToolbarHeight, SWP_NOZORDER);
 
 	m_InitializationFinished.addObserver([this] (bool newValue) {
 		if (newValue)
@@ -95,6 +131,24 @@ void Explorerplusplus::CreateFolderControls()
 
 		UpdateTreeViewSelection();
 	});
+}
+
+LRESULT CALLBACK Explorerplusplus::FoldersToolbarParentProc(
+	HWND hwnd, UINT msg, WPARAM wParam, LPARAM lParam)
+{
+	switch (msg)
+	{
+	case WM_COMMAND:
+		switch (LOWORD(wParam))
+		{
+		case FOLDERS_TOOLBAR_CLOSE:
+			ToggleFolders();
+			return 0;
+		}
+		break;
+	}
+
+	return DefSubclassProc(hwnd, msg, wParam, lParam);
 }
 
 LRESULT CALLBACK TreeViewSubclassStub(HWND hwnd,UINT uMsg,
@@ -207,7 +261,7 @@ void Explorerplusplus::OnTreeViewRightClick(WPARAM wParam,LPARAM lParam)
 	hItem	= (HTREEITEM)wParam;
 	ppt		= (POINT *)lParam;
 
-	m_bTreeViewRightClick = TRUE;
+	m_bTreeViewRightClick = true;
 
 	hPrevItem = TreeView_GetSelection(m_hTreeView);
 	TreeView_SelectItem(m_hTreeView,hItem);
@@ -235,14 +289,14 @@ void Explorerplusplus::OnTreeViewRightClick(WPARAM wParam,LPARAM lParam)
 
 			if(pidlParent)
 			{
-				m_bTreeViewOpenInNewTab = FALSE;
+				m_bTreeViewOpenInNewTab = false;
 
 				std::vector<PCITEMID_CHILD> pidlItems;
 				pidlItems.push_back(pidlRelative);
 
 				FileContextMenuManager fcmm(m_hContainer, pidlParent.get(), pidlItems);
 
-				FileContextMenuInfo_t fcmi;
+				FileContextMenuInfo fcmi;
 				fcmi.uFrom = FROM_TREEVIEW;
 
 				StatusBar statusBar(m_hStatusBar);
@@ -259,10 +313,12 @@ void Explorerplusplus::OnTreeViewRightClick(WPARAM wParam,LPARAM lParam)
 	the folder that was right-clicked was opened in
 	a new tab (i.e. can just keep the selection the
 	same). */
-	if(!m_bTreeViewOpenInNewTab)
-		TreeView_SelectItem(m_hTreeView,hPrevItem);
+	if (!m_bTreeViewOpenInNewTab)
+	{
+		TreeView_SelectItem(m_hTreeView, hPrevItem);
+	}
 
-	m_bTreeViewRightClick = FALSE;
+	m_bTreeViewRightClick = false;
 }
 
 void Explorerplusplus::OnTreeViewCopyItemPath() const
@@ -416,7 +472,7 @@ void Explorerplusplus::OnTreeViewSelChanged(LPARAM lParam)
 	}
 	else
 	{
-		m_bSelectingTreeViewDirectory = FALSE;
+		m_bSelectingTreeViewDirectory = false;
 	}
 }
 
@@ -442,8 +498,10 @@ int Explorerplusplus::OnTreeViewEndLabelEdit(LPARAM lParam)
 
 	/* No text was entered, so simply notify
 	the control to revert to the previous text. */
-	if(pdi->item.pszText == nullptr)
+	if (pdi->item.pszText == nullptr)
+	{
 		return FALSE;
+	}
 
 	/* Build the new filename from the text entered
 	and the parent directory component of the old
@@ -543,11 +601,16 @@ UINT msg,WPARAM wParam,LPARAM lParam)
 {
 	switch(msg)
 	{
+	case WM_CTLCOLORSTATIC:
+		if (auto result = OnHolderCtlColorStatic(
+				reinterpret_cast<HWND>(lParam), reinterpret_cast<HDC>(wParam)))
+		{
+			return *result;
+		}
+		break;
+
 	case WM_NOTIFY:
 		return TreeViewHolderWindowNotifyHandler(hwnd, msg, wParam, lParam);
-
-	case WM_COMMAND:
-		return TreeViewHolderWindowCommandHandler(wParam);
 
 	case WM_TIMER:
 		OnTreeViewHolderWindowTimer();
@@ -614,16 +677,23 @@ LRESULT CALLBACK Explorerplusplus::TreeViewHolderWindowNotifyHandler(HWND hwnd,
 	return DefSubclassProc(hwnd, msg, wParam, lParam);
 }
 
-LRESULT CALLBACK Explorerplusplus::TreeViewHolderWindowCommandHandler(WPARAM wParam)
+std::optional<LRESULT> Explorerplusplus::OnHolderCtlColorStatic(HWND hwnd, HDC hdc)
 {
-	switch(LOWORD(wParam))
+	UNREFERENCED_PARAMETER(hdc);
+
+	if (hwnd != m_foldersToolbarParent)
 	{
-	case FOLDERS_TOOLBAR_CLOSE:
-		ToggleFolders();
-		break;
+		return std::nullopt;
 	}
 
-	return 1;
+	auto &darkModeHelper = DarkModeHelper::GetInstance();
+
+	if (!darkModeHelper.IsDarkModeEnabled())
+	{
+		return std::nullopt;
+	}
+
+	return reinterpret_cast<LRESULT>(darkModeHelper.GetBackgroundBrush());
 }
 
 void Explorerplusplus::OnTreeViewSetFileAttributes() const
@@ -635,8 +705,8 @@ void Explorerplusplus::OnTreeViewSetFileAttributes() const
 		return;
 	}
 
-	std::list<NSetFileAttributesDialogExternal::SetFileAttributesInfo_t> sfaiList;
-	NSetFileAttributesDialogExternal::SetFileAttributesInfo_t sfai;
+	std::list<NSetFileAttributesDialogExternal::SetFileAttributesInfo> sfaiList;
+	NSetFileAttributesDialogExternal::SetFileAttributesInfo sfai;
 
 	auto pidlItem = m_shellTreeView->GetItemPidl(hItem);
 	HRESULT hr = GetDisplayName(pidlItem.get(),sfai.szFullFileName,SIZEOF_ARRAY(sfai.szFullFileName),SHGDN_FORPARSING);
@@ -734,8 +804,10 @@ void Explorerplusplus::UpdateTreeViewSelection()
 			sent when the two are different.
 			Therefore, the only case to handle is when the treeview
 			selection is changed by browsing using the listview. */
-			if(TreeView_GetSelection(m_hTreeView) != hItem)
-				m_bSelectingTreeViewDirectory = TRUE;
+			if (TreeView_GetSelection(m_hTreeView) != hItem)
+			{
+				m_bSelectingTreeViewDirectory = true;
+			}
 
 			SendMessage(m_hTreeView,TVM_SELECTITEM,(WPARAM)TVGN_CARET,(LPARAM)hItem);
 		}

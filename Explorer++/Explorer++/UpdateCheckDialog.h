@@ -4,7 +4,7 @@
 
 #pragma once
 
-#include "../Helper/BaseDialog.h"
+#include "DarkModeDialogBase.h"
 #include "../Helper/DialogSettings.h"
 #include "../Helper/Macros.h"
 
@@ -13,11 +13,9 @@ class UpdateCheckDialog;
 class UpdateCheckDialogPersistentSettings : public DialogSettings
 {
 public:
-
 	static UpdateCheckDialogPersistentSettings &GetInstance();
 
 private:
-
 	friend UpdateCheckDialog;
 
 	static const TCHAR SETTINGS_KEY[];
@@ -27,27 +25,24 @@ private:
 	DISALLOW_COPY_AND_ASSIGN(UpdateCheckDialogPersistentSettings);
 };
 
-class UpdateCheckDialog : public BaseDialog
+class UpdateCheckDialog : public DarkModeDialogBase
 {
 public:
-
 	UpdateCheckDialog(HINSTANCE hInstance, HWND hParent);
 
 protected:
-
-	INT_PTR	OnInitDialog() override;
-	INT_PTR	OnTimer(int iTimerID) override;
-	INT_PTR	OnCommand(WPARAM wParam,LPARAM lParam) override;
+	INT_PTR OnInitDialog() override;
+	INT_PTR OnTimer(int iTimerID) override;
+	INT_PTR OnCommand(WPARAM wParam, LPARAM lParam) override;
 	INT_PTR OnNotify(NMHDR *pnmhdr) override;
-	INT_PTR	OnClose() override;
+	INT_PTR OnClose() override;
 
-	void	SaveState() override;
+	void SaveState() override;
 
-	INT_PTR	OnPrivateMessage(UINT uMsg,WPARAM wParam,LPARAM lParam) override;
+	INT_PTR OnPrivateMessage(UINT uMsg, WPARAM wParam, LPARAM lParam) override;
 
 private:
-
-	struct Version_t
+	struct Version
 	{
 		int MajorVersion;
 		int MinorVersion;
@@ -65,13 +60,13 @@ private:
 
 	static const TCHAR VERSION_FILE_URL[];
 
-	static DWORD WINAPI	UpdateCheckThread(LPVOID pParam);
-	static void			PerformUpdateCheck(HWND hDlg);
+	static DWORD WINAPI UpdateCheckThread(LPVOID pParam);
+	static void PerformUpdateCheck(HWND hDlg);
 
 	void OnUpdateCheckError();
-	void OnUpdateCheckSuccess(Version_t *Version);
+	void OnUpdateCheckSuccess(Version *version);
 
 	bool m_UpdateCheckComplete;
 
-	UpdateCheckDialogPersistentSettings	*m_pucdps;
+	UpdateCheckDialogPersistentSettings *m_pucdps;
 };
