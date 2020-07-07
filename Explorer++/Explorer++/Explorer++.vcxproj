@@ -170,6 +170,7 @@
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <ObjectFileName>$(IntDir)%(RelativeDir)\</ObjectFileName>
+      <ConformanceMode>true</ConformanceMode>
     </ClCompile>
     <ResourceCompile>
       <Culture>0x0c09</Culture>
@@ -225,6 +226,7 @@
       <LanguageStandard>stdcpp17</LanguageStandard>
       <PrecompiledHeaderOutputFile>$(IntDir)$(TargetName).pch</PrecompiledHeaderOutputFile>
       <ObjectFileName>$(IntDir)%(RelativeDir)\</ObjectFileName>
+      <ConformanceMode>true</ConformanceMode>
     </ClCompile>
     <ResourceCompile>
       <Culture>0x0c09</Culture>
@@ -283,6 +285,7 @@
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <ObjectFileName>$(IntDir)%(RelativeDir)\</ObjectFileName>
+      <ConformanceMode>true</ConformanceMode>
     </ClCompile>
     <ResourceCompile>
       <Culture>0x0c09</Culture>
@@ -339,6 +342,7 @@
       <LanguageStandard>stdcpp17</LanguageStandard>
       <PrecompiledHeaderOutputFile>$(IntDir)$(TargetName).pch</PrecompiledHeaderOutputFile>
       <ObjectFileName>$(IntDir)%(RelativeDir)\</ObjectFileName>
+      <ConformanceMode>true</ConformanceMode>
     </ClCompile>
     <ResourceCompile>
       <Culture>0x0c09</Culture>
@@ -390,6 +394,7 @@
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <ObjectFileName>$(IntDir)%(RelativeDir)\</ObjectFileName>
+      <ConformanceMode>true</ConformanceMode>
     </ClCompile>
     <ResourceCompile>
       <ResourceOutputFileName>$(IntDir)Explorer++Main.res</ResourceOutputFileName>
@@ -440,6 +445,7 @@
       <MultiProcessorCompilation>true</MultiProcessorCompilation>
       <LanguageStandard>stdcpp17</LanguageStandard>
       <ObjectFileName>$(IntDir)%(RelativeDir)\</ObjectFileName>
+      <ConformanceMode>true</ConformanceMode>
     </ClCompile>
     <ResourceCompile>
       <ResourceOutputFileName>$(IntDir)Explorer++Main.res</ResourceOutputFileName>
@@ -469,6 +475,7 @@
     <ClCompile Include="ApplicationToolbarHelper.cpp" />
     <ClCompile Include="Bookmarks\BookmarkIconManager.cpp" />
     <ClCompile Include="Bookmarks\UI\BookmarkMenuController.cpp" />
+    <ClCompile Include="DarkModeButton.cpp" />
     <ClCompile Include="DarkModeDialogBase.cpp" />
     <ClCompile Include="DarkModeGroupBox.cpp" />
     <ClCompile Include="DarkModeHelper.cpp" />
@@ -636,6 +643,7 @@
     <ClInclude Include="ApplicationToolbarHelper.h" />
     <ClInclude Include="Bookmarks\BookmarkIconManager.h" />
     <ClInclude Include="Bookmarks\UI\BookmarkMenuController.h" />
+    <ClInclude Include="DarkModeButton.h" />
     <ClInclude Include="DarkModeDialogBase.h" />
     <ClInclude Include="DarkModeGroupBox.h" />
     <ClInclude Include="DarkModeHelper.h" />
