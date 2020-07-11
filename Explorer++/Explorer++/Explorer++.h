@@ -59,12 +59,12 @@ class WindowSubclassWrapper;
 
 namespace NColorRuleHelper
 {
-struct ColorRule;
+	struct ColorRule;
 }
 
 namespace Plugins
 {
-class PluginManager;
+	class PluginManager;
 }
 
 class Explorerplusplus :
@@ -119,9 +119,6 @@ private:
 	// Represents the maximum number of icons that can be cached. This cache is
 	// shared between various components in the application.
 	static const int MAX_CACHED_ICONS = 1000;
-
-	// This is the same background color as used in the Explorer treeview.
-	static inline constexpr COLORREF TREE_VIEW_DARK_MODE_BACKGROUND_COLOR = RGB(25, 25, 25);
 
 	static inline constexpr COLORREF TAB_BAR_DARK_MODE_BACKGROUND_COLOR = RGB(25, 25, 25);
 
@@ -262,7 +259,6 @@ private:
 	void OnListViewPaste();
 
 	/* TreeView private message handlers. */
-	void OnTreeViewFileDelete(BOOL bPermanent);
 	void OnTreeViewRightClick(WPARAM wParam, LPARAM lParam);
 	void OnTreeViewSelChanged(LPARAM lParam);
 	int OnTreeViewBeginLabelEdit(LPARAM lParam);
@@ -357,8 +353,7 @@ private:
 	std::vector<Column_t> LoadColumnFromRegistry(HKEY hColumnsKey, const TCHAR *szKeyName);
 	void SaveColumnToRegistry(
 		HKEY hColumnsKey, const TCHAR *szKeyName, std::vector<Column_t> *pColumns);
-	std::vector<ColumnWidth> LoadColumnWidthsFromRegistry(
-		HKEY hColumnsKey, const TCHAR *szKeyName);
+	std::vector<ColumnWidth> LoadColumnWidthsFromRegistry(HKEY hColumnsKey, const TCHAR *szKeyName);
 	void SaveColumnWidthsToRegistry(
 		HKEY hColumnsKey, const TCHAR *szKeyName, std::vector<Column_t> *pColumns);
 	void LoadDefaultColumnsFromRegistry();
@@ -468,9 +463,6 @@ private:
 	HRESULT ExpandAndBrowsePath(const TCHAR *szPath);
 	HRESULT ExpandAndBrowsePath(const TCHAR *szPath, BOOL bOpenInNewTab, BOOL bSwitchToNewTab);
 
-	/* Filtering. */
-	void ToggleFilterStatus();
-
 	/* IExplorerplusplus methods. */
 	Config *GetConfig() const override;
 	HMODULE GetLanguageModule() const override;
@@ -523,7 +515,6 @@ private:
 	HWND m_hMainRebar;
 	HWND m_hDisplayWindow;
 	HWND m_hTabWindowToolbar;
-	HWND m_hTreeView;
 	HWND m_hHolder;
 	HWND m_foldersToolbarParent;
 	HWND m_hFoldersToolbar;
@@ -655,9 +646,6 @@ private:
 
 	/* Mousewheel. */
 	int m_zDeltaTotal;
-
-	/* TreeView middle click. */
-	HTREEITEM m_hTVMButtonItem;
 
 	bool m_blockNextListViewSelection;
 };

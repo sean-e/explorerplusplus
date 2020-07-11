@@ -21,9 +21,9 @@ BOOL Explorerplusplus::AnyItemsSelected() const
 			return TRUE;
 		}
 	}
-	else if (hFocus == m_hTreeView)
+	else if (hFocus == m_shellTreeView->GetHWND())
 	{
-		if (TreeView_GetSelection(m_hTreeView) != nullptr)
+		if (TreeView_GetSelection(m_shellTreeView->GetHWND()) != nullptr)
 		{
 			return TRUE;
 		}
@@ -98,8 +98,8 @@ BOOL Explorerplusplus::TestItemAttributes(SFGAOF attributes) const
 
 HRESULT Explorerplusplus::GetSelectionAttributes(SFGAOF *pItemAttributes) const
 {
-	HWND	hFocus;
-	HRESULT	hr = E_FAIL;
+	HWND hFocus;
+	HRESULT hr = E_FAIL;
 
 	hFocus = GetFocus();
 
@@ -107,7 +107,7 @@ HRESULT Explorerplusplus::GetSelectionAttributes(SFGAOF *pItemAttributes) const
 	{
 		hr = GetListViewSelectionAttributes(pItemAttributes);
 	}
-	else if (hFocus == m_hTreeView)
+	else if (hFocus == m_shellTreeView->GetHWND())
 	{
 		hr = GetTreeViewSelectionAttributes(pItemAttributes);
 	}
@@ -137,7 +137,8 @@ HRESULT Explorerplusplus::GetListViewSelectionAttributes(SFGAOF *pItemAttributes
 	const Tab &selectedTab = m_tabContainer->GetSelectedTab();
 
 	/* TODO: This should probably check all selected files. */
-	int iSelected = ListView_GetNextItem(selectedTab.GetShellBrowser()->GetListView(), -1, LVNI_SELECTED);
+	int iSelected =
+		ListView_GetNextItem(selectedTab.GetShellBrowser()->GetListView(), -1, LVNI_SELECTED);
 
 	if (iSelected != -1)
 	{
@@ -147,7 +148,8 @@ HRESULT Explorerplusplus::GetListViewSelectionAttributes(SFGAOF *pItemAttributes
 	return hr;
 }
 
-HRESULT Explorerplusplus::GetListViewItemAttributes(const Tab &tab, int item, SFGAOF *pItemAttributes) const
+HRESULT Explorerplusplus::GetListViewItemAttributes(
+	const Tab &tab, int item, SFGAOF *pItemAttributes) const
 {
 	auto pidlComplete = tab.GetShellBrowser()->GetItemCompleteIdl(item);
 
@@ -164,7 +166,7 @@ HRESULT Explorerplusplus::GetListViewItemAttributes(const Tab &tab, int item, SF
 HRESULT Explorerplusplus::GetTreeViewSelectionAttributes(SFGAOF *pItemAttributes) const
 {
 	HRESULT hr = E_FAIL;
-	auto hItem = TreeView_GetSelection(m_hTreeView);
+	auto hItem = TreeView_GetSelection(m_shellTreeView->GetHWND());
 
 	if (hItem != nullptr)
 	{
@@ -199,9 +201,9 @@ BOOL Explorerplusplus::CanPaste() const
 	{
 		return bDataAvailable && CanCreate();
 	}
-	else if (hFocus == m_hTreeView)
+	else if (hFocus == m_shellTreeView->GetHWND())
 	{
-		auto hItem = TreeView_GetSelection(m_hTreeView);
+		auto hItem = TreeView_GetSelection(m_shellTreeView->GetHWND());
 
 		if (hItem != nullptr)
 		{

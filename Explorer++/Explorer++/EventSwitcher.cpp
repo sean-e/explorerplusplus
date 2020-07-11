@@ -20,11 +20,11 @@ void Explorerplusplus::OnCopyItemPath() const
 
 	hFocus = GetFocus();
 
-	if(hFocus == m_hActiveListView)
+	if (hFocus == m_hActiveListView)
 	{
 		OnListViewCopyItemPath();
 	}
-	else if(hFocus == m_hTreeView)
+	else if (hFocus == m_shellTreeView->GetHWND())
 	{
 		OnTreeViewCopyItemPath();
 	}
@@ -36,11 +36,11 @@ void Explorerplusplus::OnCopyUniversalPaths() const
 
 	hFocus = GetFocus();
 
-	if(hFocus == m_hActiveListView)
+	if (hFocus == m_hActiveListView)
 	{
 		OnListViewCopyUniversalPaths();
 	}
-	else if(hFocus == m_hTreeView)
+	else if (hFocus == m_shellTreeView->GetHWND())
 	{
 		OnTreeViewCopyUniversalPaths();
 	}
@@ -52,11 +52,11 @@ void Explorerplusplus::OnCopy(BOOL bCopy)
 
 	hFocus = GetFocus();
 
-	if(hFocus == m_hActiveListView)
+	if (hFocus == m_hActiveListView)
 	{
 		OnListViewCopy(bCopy);
 	}
-	else if(hFocus == m_hTreeView)
+	else if (hFocus == m_shellTreeView->GetHWND())
 	{
 		OnTreeViewCopy(bCopy);
 	}
@@ -64,22 +64,21 @@ void Explorerplusplus::OnCopy(BOOL bCopy)
 
 void Explorerplusplus::OnFileRename()
 {
-	HWND	hFocus;
+	HWND hFocus;
 
-	if(m_bListViewRenaming)
+	if (m_bListViewRenaming)
 	{
-		SendMessage(ListView_GetEditControl(m_hActiveListView),
-			WM_APP_KEYDOWN,VK_F2,0);
+		SendMessage(ListView_GetEditControl(m_hActiveListView), WM_APP_KEYDOWN, VK_F2, 0);
 	}
 	else
 	{
 		hFocus = GetFocus();
 
-		if(hFocus == m_hActiveListView)
+		if (hFocus == m_hActiveListView)
 		{
 			OnListViewFileRename();
 		}
-		else if(hFocus == m_hTreeView)
+		else if (hFocus == m_shellTreeView->GetHWND())
 		{
 			m_shellTreeView->StartRenamingSelectedItem();
 		}
@@ -92,13 +91,13 @@ void Explorerplusplus::OnFileDelete(bool permanent)
 
 	hFocus = GetFocus();
 
-	if(hFocus == m_hActiveListView)
+	if (hFocus == m_hActiveListView)
 	{
 		OnListViewFileDelete(permanent);
 	}
-	else if(hFocus == m_hTreeView)
+	else if (hFocus == m_shellTreeView->GetHWND())
 	{
-		OnTreeViewFileDelete(permanent);
+		m_shellTreeView->DeleteSelectedItem(permanent);
 	}
 }
 
@@ -108,11 +107,11 @@ void Explorerplusplus::OnSetFileAttributes() const
 
 	hFocus = GetFocus();
 
-	if(hFocus == m_hActiveListView)
+	if (hFocus == m_hActiveListView)
 	{
 		OnListViewSetFileAttributes();
 	}
-	else if(hFocus == m_hTreeView)
+	else if (hFocus == m_shellTreeView->GetHWND())
 	{
 		OnTreeViewSetFileAttributes();
 	}
@@ -124,12 +123,12 @@ void Explorerplusplus::OnShowFileProperties() const
 
 	hFocus = GetFocus();
 
-	if(hFocus == m_hActiveListView)
+	if (hFocus == m_hActiveListView)
 	{
 		const Tab &selectedTab = m_tabContainer->GetSelectedTab();
 		selectedTab.GetShellBrowser()->ShowPropertiesForSelectedFiles();
 	}
-	else if(hFocus == m_hTreeView)
+	else if (hFocus == m_shellTreeView->GetHWND())
 	{
 		m_shellTreeView->ShowPropertiesOfSelectedItem();
 	}
@@ -137,7 +136,7 @@ void Explorerplusplus::OnShowFileProperties() const
 
 void Explorerplusplus::OnRightClick(NMHDR *nmhdr)
 {
-	if(nmhdr->hwndFrom == m_hActiveListView)
+	if (nmhdr->hwndFrom == m_hActiveListView)
 	{
 		POINT cursorPos;
 		DWORD dwPos;
@@ -156,11 +155,11 @@ void Explorerplusplus::OnPaste()
 
 	hFocus = GetFocus();
 
-	if(hFocus == m_hActiveListView)
+	if (hFocus == m_hActiveListView)
 	{
 		OnListViewPaste();
 	}
-	else if(hFocus == m_hTreeView)
+	else if (hFocus == m_shellTreeView->GetHWND())
 	{
 		OnTreeViewPaste();
 	}
@@ -229,12 +228,12 @@ BOOL Explorerplusplus::OnMouseWheel(MousewheelSource mousewheelSource, WPARAM wP
 			}
 		}
 	}
-	else if (hwnd == m_hTreeView)
+	else if (hwnd == m_shellTreeView->GetHWND())
 	{
 		if (mousewheelSource != MousewheelSource::TreeView)
 		{
 			bMessageHandled = TRUE;
-			SendMessage(m_hTreeView, WM_MOUSEWHEEL, wParam, lParam);
+			SendMessage(m_shellTreeView->GetHWND(), WM_MOUSEWHEEL, wParam, lParam);
 		}
 	}
 	else if (hwnd == m_tabContainer->GetHWND())
@@ -246,7 +245,8 @@ BOOL Explorerplusplus::OnMouseWheel(MousewheelSource mousewheelSource, WPARAM wP
 		if (hUpDown != nullptr)
 		{
 			BOOL bSuccess;
-			int iPos = static_cast<int>(SendMessage(hUpDown, UDM_GETPOS32, 0, reinterpret_cast<LPARAM>(&bSuccess)));
+			int iPos = static_cast<int>(
+				SendMessage(hUpDown, UDM_GETPOS32, 0, reinterpret_cast<LPARAM>(&bSuccess)));
 
 			if (bSuccess)
 			{
@@ -254,7 +254,8 @@ BOOL Explorerplusplus::OnMouseWheel(MousewheelSource mousewheelSource, WPARAM wP
 
 				int iLow;
 				int iHigh;
-				SendMessage(hUpDown, UDM_GETRANGE32, reinterpret_cast<WPARAM>(&iLow), reinterpret_cast<LPARAM>(&iHigh));
+				SendMessage(hUpDown, UDM_GETRANGE32, reinterpret_cast<WPARAM>(&iLow),
+					reinterpret_cast<LPARAM>(&iHigh));
 
 				if (m_zDeltaTotal < 0)
 				{
@@ -271,7 +272,8 @@ BOOL Explorerplusplus::OnMouseWheel(MousewheelSource mousewheelSource, WPARAM wP
 					}
 				}
 
-				SendMessage(m_tabContainer->GetHWND(), WM_HSCROLL, MAKEWPARAM(SB_THUMBPOSITION, iScrollPos), NULL);
+				SendMessage(m_tabContainer->GetHWND(), WM_HSCROLL,
+					MAKEWPARAM(SB_THUMBPOSITION, iScrollPos), NULL);
 			}
 		}
 	}

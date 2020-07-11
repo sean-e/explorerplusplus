@@ -16,8 +16,12 @@
 
 #include "stdafx.h"
 #include "ShellTreeView.h"
+#include "DarkModeHelper.h"
+#include "TabContainer.h"
 #include "../Helper/CachedIcons.h"
+#include "../Helper/Controls.h"
 #include "../Helper/DriveInfo.h"
+#include "../Helper/Helper.h"
 #include "../Helper/Macros.h"
 #include "../Helper/ShellHelper.h"
 #include <wil/com.h>
@@ -26,9 +30,11 @@
 int CALLBACK		CompareItemsStub(LPARAM lParam1,LPARAM lParam2,LPARAM lParamSort);
 DWORD WINAPI		Thread_MonitorAllDrives(LPVOID pParam);
 
-ShellTreeView::ShellTreeView(HWND hTreeView, HWND hParent, IDirectoryMonitor *pDirMon, CachedIcons *cachedIcons) :
-	m_hTreeView(hTreeView),
+ShellTreeView::ShellTreeView(HWND hParent, IDirectoryMonitor *pDirMon, TabContainer *tabContainer,
+	CachedIcons *cachedIcons) :
+	m_hTreeView(CreateTreeView(hParent)),
 	m_pDirMon(pDirMon),
+	m_tabContainer(tabContainer),
 	m_cachedIcons(cachedIcons),
 	m_iRefCount(1),
 	m_itemIDCounter(0),
@@ -38,6 +44,24 @@ ShellTreeView::ShellTreeView(HWND hTreeView, HWND hParent, IDirectoryMonitor *pD
 	m_subfoldersThreadPool(1, std::bind(CoInitializeEx, nullptr, COINIT_APARTMENTTHREADED), CoUninitialize),
 	m_subfoldersResultIDCounter(0)
 {
+	auto &darkModeHelper = DarkModeHelper::GetInstance();
+
+	if (DarkModeHelper::GetInstance().IsDarkModeEnabled())
+	{
+		darkModeHelper.AllowDarkModeForWindow(m_hTreeView, true);
+
+		TreeView_SetBkColor(m_hTreeView, TREE_VIEW_DARK_MODE_BACKGROUND_COLOR);
+		TreeView_SetTextColor(m_hTreeView, DarkModeHelper::TEXT_COLOR);
+
+		InvalidateRect(m_hTreeView, nullptr, TRUE);
+
+		HWND tooltips = TreeView_GetToolTips(m_hTreeView);
+		darkModeHelper.AllowDarkModeForWindow(tooltips, true);
+		SetWindowTheme(tooltips, L"Explorer", nullptr);
+	}
+
+	SetWindowTheme(m_hTreeView, L"Explorer", nullptr);
+
 	m_windowSubclasses.push_back(std::make_unique<WindowSubclassWrapper>(
 		m_hTreeView, TreeViewProcStub, SUBCLASS_ID, reinterpret_cast<DWORD_PTR>(this)));
 	m_windowSubclasses.push_back(std::make_unique<WindowSubclassWrapper>(
@@ -59,6 +83,18 @@ ShellTreeView::ShellTreeView(HWND hTreeView, HWND hParent, IDirectoryMonitor *pD
 	m_bQueryRemoveCompleted = FALSE;
 	HANDLE hThread = CreateThread(nullptr,0,Thread_MonitorAllDrives,this,0, nullptr);
 	CloseHandle(hThread);
+}
+
+HWND ShellTreeView::CreateTreeView(HWND parent)
+{
+	return ::CreateTreeView(parent,
+		WS_CHILD | WS_VISIBLE | TVS_SHOWSELALWAYS | TVS_HASBUTTONS | TVS_EDITLABELS | TVS_HASLINES
+			| TVS_TRACKSELECT);
+}
+
+HWND ShellTreeView::GetHWND() const
+{
+	return m_hTreeView;
 }
 
 ShellTreeView::~ShellTreeView()
@@ -113,6 +149,22 @@ LRESULT CALLBACK ShellTreeView::TreeViewProc(HWND hwnd, UINT msg, WPARAM wParam,
 			m_bDragCancelled = FALSE;
 			m_bDragAllowed = FALSE;
 			break;
+
+		case WM_MBUTTONDOWN:
+		{
+			POINT pt;
+			POINTSTOPOINT(pt, MAKEPOINTS(lParam));
+			OnMiddleButtonDown(&pt);
+		}
+		break;
+
+		case WM_MBUTTONUP:
+		{
+			POINT pt;
+			POINTSTOPOINT(pt, MAKEPOINTS(lParam));
+			OnMiddleButtonUp(&pt);
+		}
+		break;
 
 		case WM_MOUSEMOVE:
 			{
@@ -210,6 +262,10 @@ LRESULT CALLBACK ShellTreeView::ParentWndProc(HWND hwnd, UINT uMsg, WPARAM wPara
 
 			case TVN_ITEMEXPANDING:
 				OnItemExpanding(reinterpret_cast<NMTREEVIEW *>(lParam));
+				break;
+
+			case TVN_KEYDOWN:
+				OnKeyDown(reinterpret_cast<NMTVKEYDOWN *>(lParam));
 				break;
 			}
 		}
@@ -522,6 +578,23 @@ void ShellTreeView::OnItemExpanding(const NMTREEVIEW *nmtv)
 
 		SendMessage(m_hTreeView, TVM_EXPAND, TVE_COLLAPSE | TVE_COLLAPSERESET,
 			reinterpret_cast<LPARAM>(parentItem));
+	}
+}
+
+void ShellTreeView::OnKeyDown(const NMTVKEYDOWN *keyDown)
+{
+	switch (keyDown->wVKey)
+	{
+	case VK_DELETE:
+		if (IsKeyDown(VK_SHIFT))
+		{
+			DeleteSelectedItem(true);
+		}
+		else
+		{
+			DeleteSelectedItem(false);
+		}
+		break;
 	}
 }
 
@@ -1423,6 +1496,46 @@ void ShellTreeView::MonitorDrive(const TCHAR *szDrive)
 	}
 }
 
+void ShellTreeView::OnMiddleButtonDown(const POINT *pt)
+{
+	TVHITTESTINFO hitTestInfo;
+	hitTestInfo.pt = *pt;
+
+	TreeView_HitTest(m_hTreeView, &hitTestInfo);
+
+	if (hitTestInfo.flags != LVHT_NOWHERE)
+	{
+		m_middleButtonItem = hitTestInfo.hItem;
+	}
+	else
+	{
+		m_middleButtonItem = nullptr;
+	}
+}
+
+void ShellTreeView::OnMiddleButtonUp(const POINT *pt)
+{
+	TVHITTESTINFO hitTestInfo;
+	hitTestInfo.pt = *pt;
+
+	TreeView_HitTest(m_hTreeView, &hitTestInfo);
+
+	if (hitTestInfo.flags == LVHT_NOWHERE)
+	{
+		return;
+	}
+
+	// Only open an item if it was the one on which the middle mouse button was initially clicked
+	// on.
+	if (hitTestInfo.hItem != m_middleButtonItem)
+	{
+		return;
+	}
+
+	auto pidl = GetItemPidl(hitTestInfo.hItem);
+	m_tabContainer->CreateNewTab(pidl.get());
+}
+
 HRESULT ShellTreeView::InitializeDragDropHelpers()
 {
 	HRESULT hr;
@@ -1662,4 +1775,24 @@ void ShellTreeView::ShowPropertiesOfSelectedItem() const
 {
 	auto pidlDirectory = GetSelectedItemPidl();
 	ShowMultipleFileProperties(pidlDirectory.get(), nullptr, m_hTreeView, 0);
+}
+
+void ShellTreeView::DeleteSelectedItem(bool permanent)
+{
+	HTREEITEM item = TreeView_GetSelection(m_hTreeView);
+	HTREEITEM parentItem = TreeView_GetParent(m_hTreeView, item);
+
+	// Select the parent item to release the lock and allow deletion.
+	TreeView_Select(m_hTreeView, parentItem, TVGN_CARET);
+
+	auto pidl = GetItemPidl(item);
+
+	DWORD mask = 0;
+
+	if (permanent)
+	{
+		mask = CMIC_MASK_SHIFT_DOWN;
+	}
+
+	ExecuteActionFromContextMenu(pidl.get(), nullptr, m_hTreeView, 0, _T("delete"), mask);
 }

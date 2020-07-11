@@ -143,7 +143,7 @@ void DarkModeHelper::SetDarkModeForToolbarTooltips(HWND toolbar)
 }
 
 // Sets the dark mode theme for a control. Works for controls that use the DarkMode_Explorer theme:
-// 
+//
 // - Buttons
 // - Scrollbars
 // - TreeViews
@@ -187,7 +187,7 @@ void DarkModeHelper::SetListViewDarkModeColors(HWND listView)
 
 	ListView_SetBkColor(listView, BACKGROUND_COLOR);
 	ListView_SetTextBkColor(listView, BACKGROUND_COLOR);
-	ListView_SetTextColor(listView, FOREGROUND_COLOR);
+	ListView_SetTextColor(listView, TEXT_COLOR);
 
 	InvalidateRect(listView, nullptr, TRUE);
 }
@@ -197,16 +197,16 @@ void DarkModeHelper::SetTreeViewDarkModeColors(HWND treeView)
 	AllowDarkModeForWindow(treeView, true);
 
 	// When in dark mode, this theme sets the following colors correctly:
-	// 
+	//
 	// - the item selection color,
 	// - the colors of the arrows that appear to the left of the items,
 	// - the color of the scrollbars.
-	// 
+	//
 	// It doesn't, however, change the background color, or the text color.
 	SetWindowTheme(treeView, L"Explorer", nullptr);
 
 	TreeView_SetBkColor(treeView, BACKGROUND_COLOR);
-	TreeView_SetTextColor(treeView, FOREGROUND_COLOR);
+	TreeView_SetTextColor(treeView, TEXT_COLOR);
 
 	InvalidateRect(treeView, nullptr, TRUE);
 }
