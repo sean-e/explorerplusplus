@@ -58,7 +58,7 @@ void Explorerplusplus::OnCopy(BOOL bCopy)
 	}
 	else if (hFocus == m_shellTreeView->GetHWND())
 	{
-		OnTreeViewCopy(bCopy);
+		m_shellTreeView->CopySelectedItemToClipboard(bCopy);
 	}
 }
 
@@ -161,7 +161,7 @@ void Explorerplusplus::OnPaste()
 	}
 	else if (hFocus == m_shellTreeView->GetHWND())
 	{
-		OnTreeViewPaste();
+		m_shellTreeView->PasteClipboardData();
 	}
 }
 

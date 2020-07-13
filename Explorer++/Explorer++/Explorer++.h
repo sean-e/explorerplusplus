@@ -261,14 +261,9 @@ private:
 	/* TreeView private message handlers. */
 	void OnTreeViewRightClick(WPARAM wParam, LPARAM lParam);
 	void OnTreeViewSelChanged(LPARAM lParam);
-	int OnTreeViewBeginLabelEdit(LPARAM lParam);
-	int OnTreeViewEndLabelEdit(LPARAM lParam);
-	LRESULT OnTreeViewKeyDown(LPARAM lParam);
 	void OnTreeViewCopyItemPath() const;
-	void OnTreeViewCopy(BOOL bCopy);
 	void OnTreeViewSetFileAttributes() const;
 	void OnTreeViewCopyUniversalPaths() const;
-	void OnTreeViewPaste();
 
 	/* Holder window private message handlers. */
 	std::optional<LRESULT> OnHolderCtlColorStatic(HWND hwnd, HDC hdc);
@@ -531,7 +526,6 @@ private:
 	HWND m_hLastActiveWindow;
 	HWND m_hNextClipboardViewer;
 	std::wstring m_CurrentDirectory;
-	TCHAR m_OldTreeViewFileName[MAX_PATH];
 	bool m_bTreeViewRightClick;
 	bool m_bSelectingTreeViewDirectory;
 	bool m_bAttemptToolbarRestore;
@@ -627,7 +621,6 @@ private:
 
 	/* Copy/cut. */
 	IDataObject *m_pClipboardDataObject;
-	HTREEITEM m_hCutTreeViewItem;
 
 	/* Drag and drop. */
 	bool m_bDragging;
