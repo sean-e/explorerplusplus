@@ -174,15 +174,8 @@ void ShellBrowser::SetUpListViewColumns()
 
 void ShellBrowser::InsertColumn(ColumnType columnType, int columnIndex, int width)
 {
-	std::wstring columnText;
-	try
-	{
-		columnText =
-			ResourceHelper::LoadString(m_hResourceModule, LookupColumnNameStringIndex(columnType));
-	}
-	catch (const std::runtime_error &)
-	{
-	}
+	std::wstring columnText =
+		ResourceHelper::LoadString(m_hResourceModule, LookupColumnNameStringIndex(columnType));
 
 	LV_COLUMN lvColumn;
 	lvColumn.mask = LVCF_TEXT | LVCF_WIDTH;
@@ -443,7 +436,7 @@ SortMode ShellBrowser::DetermineColumnSortMode(ColumnType columnType)
 		return SortMode::MediaYear;
 
 	default:
-// 		assert(false);
+		assert(false);
 		break;
 	}
 
@@ -644,7 +637,7 @@ int ShellBrowser::LookupColumnNameStringIndex(ColumnType columnType)
 		return IDS_COLUMN_NAME_YEAR;
 
 	default:
-// 		assert(false);
+		assert(false);
 		break;
 	}
 
@@ -764,7 +757,7 @@ int ShellBrowser::LookupColumnDescriptionStringIndex(ColumnType columnType)
 		return IDS_COLUMN_DESCRIPTION_BITRATE;
 
 	default:
-// 		assert(false);
+		assert(false);
 		break;
 	}
 
