@@ -10,7 +10,6 @@
 #include "ListViewEdit.h"
 #include "MainResource.h"
 #include "MainToolbar.h"
-#include "MassRenameDialog.h"
 #include "Navigation.h"
 #include "ResourceHelper.h"
 #include "SetFileAttributesDialog.h"
@@ -270,9 +269,7 @@ LRESULT CALLBACK Explorerplusplus::ListViewSubclassProc(
 
 LRESULT Explorerplusplus::OnListViewKeyDown(LPARAM lParam)
 {
-	LV_KEYDOWN *keyDown = nullptr;
-
-	keyDown = (LV_KEYDOWN *) lParam;
+	LV_KEYDOWN *keyDown = reinterpret_cast<LV_KEYDOWN *>(lParam);
 
 	switch (keyDown->wVKey)
 	{
@@ -289,35 +286,10 @@ LRESULT Explorerplusplus::OnListViewKeyDown(LPARAM lParam)
 		}
 		break;
 
-	case VK_DELETE:
-		if (IsKeyDown(VK_SHIFT))
-		{
-			OnListViewFileDelete(true);
-		}
-		else
-		{
-			OnListViewFileDelete(false);
-		}
-		break;
-
-	case 'C':
-		if (IsKeyDown(VK_CONTROL) && !IsKeyDown(VK_SHIFT) && !IsKeyDown(VK_MENU))
-		{
-			OnListViewCopy(TRUE);
-		}
-		break;
-
 	case 'V':
 		if (IsKeyDown(VK_CONTROL) && !IsKeyDown(VK_SHIFT) && !IsKeyDown(VK_MENU))
 		{
 			OnListViewPaste();
-		}
-		break;
-
-	case 'X':
-		if (IsKeyDown(VK_CONTROL) && !IsKeyDown(VK_SHIFT) && !IsKeyDown(VK_MENU))
-		{
-			OnListViewCopy(FALSE);
 		}
 		break;
 	}
@@ -691,7 +663,7 @@ HRESULT Explorerplusplus::OnListViewBeginDrag(LPARAM lParam, DragType dragType)
 
 	std::vector<unique_pidl_child> pidls;
 	std::vector<PCITEMID_CHILD> rawPidls;
-	std::list<std::wstring> filenameList;
+	std::vector<std::wstring> filenameList;
 
 	int item = -1;
 
@@ -782,44 +754,6 @@ HRESULT Explorerplusplus::OnListViewBeginDrag(LPARAM lParam, DragType dragType)
 	return hr;
 }
 
-void Explorerplusplus::OnListViewFileDelete(bool permanent)
-{
-	int nSelected = ListView_GetSelectedCount(m_hActiveListView);
-
-	if (nSelected == 0)
-	{
-		return;
-	}
-
-	// PIDLPointer is analogous to a unique_ptr. This vector exists only
-	// so that the underlying PIDLs will be freed on scope exit (i.e.
-	// when this function returns).
-	std::vector<unique_pidl_absolute> pidlPtrs;
-
-	std::vector<PCIDLIST_ABSOLUTE> pidls;
-	int iItem = -1;
-
-	while ((iItem = ListView_GetNextItem(m_hActiveListView, iItem, LVNI_SELECTED)) != -1)
-	{
-		auto pidlPtr = m_pActiveShellBrowser->GetItemCompleteIdl(iItem);
-
-		if (!pidlPtr)
-		{
-			continue;
-		}
-
-		pidls.push_back(pidlPtr.get());
-		pidlPtrs.push_back(std::move(pidlPtr));
-	}
-
-	if (pidls.empty())
-	{
-		return;
-	}
-
-	m_FileActionHandler.DeleteFiles(m_hContainer, pidls, permanent, false);
-}
-
 void Explorerplusplus::OnListViewDoubleClick(NMHDR *nmhdr)
 {
 	if (nmhdr->hwndFrom == m_hActiveListView)
@@ -862,72 +796,6 @@ void Explorerplusplus::OnListViewDoubleClick(NMHDR *nmhdr)
 			}
 		}
 	}
-}
-
-void Explorerplusplus::OnListViewFileRename()
-{
-	int nSelected = ListView_GetSelectedCount(m_hActiveListView);
-
-	/* If there is only item selected, start editing
-	it in-place. If multiple items are selected,
-	show the mass rename dialog. */
-	if (nSelected == 1)
-	{
-		OnListViewFileRenameSingle();
-	}
-	else if (nSelected > 1)
-	{
-		OnListViewFileRenameMultiple();
-	}
-}
-
-void Explorerplusplus::OnListViewFileRenameSingle()
-{
-	int iSelected = ListView_GetNextItem(m_hActiveListView, -1, LVNI_SELECTED | LVNI_FOCUSED);
-
-	if (iSelected == -1)
-	{
-		return;
-	}
-
-	BOOL canRename = TestListViewItemAttributes(iSelected, SFGAO_CANRENAME);
-
-	if (!canRename)
-	{
-		return;
-	}
-
-	ListView_EditLabel(m_hActiveListView, iSelected);
-}
-
-void Explorerplusplus::OnListViewFileRenameMultiple()
-{
-	std::list<std::wstring> fullFilenameList;
-	TCHAR szFullFilename[MAX_PATH];
-	int iIndex = -1;
-
-	while ((iIndex = ListView_GetNextItem(m_hActiveListView, iIndex, LVNI_SELECTED)) != -1)
-	{
-		BOOL canRename = TestListViewItemAttributes(iIndex, SFGAO_CANRENAME);
-
-		if (!canRename)
-		{
-			continue;
-		}
-
-		m_pActiveShellBrowser->GetItemFullName(
-			iIndex, szFullFilename, SIZEOF_ARRAY(szFullFilename));
-		fullFilenameList.emplace_back(szFullFilename);
-	}
-
-	if (fullFilenameList.empty())
-	{
-		return;
-	}
-
-	MassRenameDialog massRenameDialog(
-		m_hLanguageModule, m_hContainer, this, fullFilenameList, &m_FileActionHandler);
-	massRenameDialog.ShowModalDialog();
 }
 
 void Explorerplusplus::OnListViewCopyItemPath() const
@@ -992,58 +860,6 @@ void Explorerplusplus::OnListViewCopyUniversalPaths() const
 	clipboardWriter.WriteText(strUniversalPaths);
 }
 
-HRESULT Explorerplusplus::OnListViewCopy(BOOL bCopy)
-{
-	IDataObject *pClipboardDataObject = nullptr;
-	int iItem = -1;
-	HRESULT hr;
-
-	if (!CanCopy())
-		return E_FAIL;
-
-	SetCursor(LoadCursor(nullptr, IDC_WAIT));
-
-	std::list<std::wstring> fileNameList;
-
-	BuildListViewFileSelectionList(m_hActiveListView, &fileNameList);
-
-	if (bCopy)
-	{
-		hr = CopyFiles(fileNameList, &pClipboardDataObject);
-
-		if (SUCCEEDED(hr))
-		{
-			m_pClipboardDataObject = pClipboardDataObject;
-		}
-	}
-	else
-	{
-		hr = CutFiles(fileNameList, &pClipboardDataObject);
-
-		if (SUCCEEDED(hr))
-		{
-			m_pClipboardDataObject = pClipboardDataObject;
-			m_iCutTabInternal = m_tabContainer->GetSelectedTab().GetId();
-
-			TCHAR szFilename[MAX_PATH];
-
-			/* 'Ghost' each of the cut items. */
-			while ((iItem = ListView_GetNextItem(m_hActiveListView, iItem, LVNI_SELECTED)) != -1)
-			{
-				m_pActiveShellBrowser->GetItemDisplayName(
-					iItem, SIZEOF_ARRAY(szFilename), szFilename);
-				m_CutFileNameList.emplace_back(szFilename);
-
-				m_pActiveShellBrowser->GhostItem(iItem);
-			}
-		}
-	}
-
-	SetCursor(LoadCursor(nullptr, IDC_ARROW));
-
-	return hr;
-}
-
 void Explorerplusplus::OnListViewSetFileAttributes() const
 {
 	const Tab &selectedTab = m_tabContainer->GetSelectedTab();
@@ -1078,30 +894,6 @@ void Explorerplusplus::OnListViewPaste()
 
 		pClipboardObject->Release();
 	}
-}
-
-void Explorerplusplus::BuildListViewFileSelectionList(
-	HWND hListView, std::list<std::wstring> *pFileSelectionList)
-{
-	if (pFileSelectionList == nullptr)
-	{
-		return;
-	}
-
-	std::list<std::wstring> fileSelectionList;
-	int iItem = -1;
-
-	while ((iItem = ListView_GetNextItem(hListView, iItem, LVNI_SELECTED)) != -1)
-	{
-		TCHAR szFullFileName[MAX_PATH];
-
-		m_pActiveShellBrowser->GetItemFullName(iItem, szFullFileName, SIZEOF_ARRAY(szFullFileName));
-
-		std::wstring stringFileName(szFullFileName);
-		fileSelectionList.push_back(stringFileName);
-	}
-
-	pFileSelectionList->assign(fileSelectionList.begin(), fileSelectionList.end());
 }
 
 int Explorerplusplus::HighlightSimilarFiles(HWND ListView) const

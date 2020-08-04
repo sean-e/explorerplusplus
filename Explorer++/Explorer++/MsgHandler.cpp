@@ -543,17 +543,15 @@ std::optional<LRESULT> Explorerplusplus::OnCtlColorStatic(HWND hwnd, HDC hdc)
 	return std::nullopt;
 }
 
+boost::signals2::connection Explorerplusplus::AddApplicationShuttingDownObserver(
+	const ApplicationShuttingDownSignal::slot_type &observer)
+{
+	return m_applicationShuttingDownSignal.connect(observer);
+}
+
 int Explorerplusplus::OnDestroy()
 {
-	if (m_pClipboardDataObject != nullptr)
-	{
-		if (OleIsCurrentClipboard(m_pClipboardDataObject) == S_OK)
-		{
-			/* Ensure that any data that was copied to the clipboard
-			remains there after we exit. */
-			OleFlushClipboard();
-		}
-	}
+	m_applicationShuttingDownSignal();
 
 	if (m_SHChangeNotifyID != 0)
 	{
@@ -562,7 +560,6 @@ int Explorerplusplus::OnDestroy()
 
 	delete m_pStatusBar;
 
-	ChangeClipboardChain(m_hContainer, m_hNextClipboardViewer);
 	PostQuitMessage(0);
 
 	return 0;
@@ -606,66 +603,6 @@ int Explorerplusplus::OnClose()
 void Explorerplusplus::OnSetFocus()
 {
 	SetFocus(m_hLastActiveWindow);
-}
-
-/*
- * Called when the contents of the clipboard change.
- * All cut items are deghosted, and the 'Paste' button
- * is enabled/disabled.
- */
-void Explorerplusplus::OnDrawClipboard()
-{
-	if (m_pClipboardDataObject)
-	{
-		if (OleIsCurrentClipboard(m_pClipboardDataObject) == S_FALSE)
-		{
-			/* Deghost all items that have been 'cut'. */
-			for (const auto &strFile : m_CutFileNameList)
-			{
-				Tab *tab = m_tabContainer->GetTabOptional(m_iCutTabInternal);
-
-				/* Only deghost the items if the tab they
-				are/were in still exists. */
-				if (tab)
-				{
-					int iItem = tab->GetShellBrowser()->LocateFileItemIndex(strFile.c_str());
-
-					/* It is possible that the ghosted file
-					does NOT exist within the current folder.
-					This is the case when (for example), a file
-					is cut, and the folder is changed, in which
-					case the item is no longer available. */
-					if (iItem != -1)
-						tab->GetShellBrowser()->DeghostItem(iItem);
-				}
-			}
-
-			m_CutFileNameList.clear();
-
-			m_pClipboardDataObject->Release();
-			m_pClipboardDataObject = nullptr;
-		}
-	}
-
-	SendMessage(m_mainToolbar->GetHWND(), TB_ENABLEBUTTON, ToolbarButton::Paste, CanPaste());
-
-	if (m_hNextClipboardViewer != nullptr)
-	{
-		/* Forward the message to the next window in the chain. */
-		SendMessage(m_hNextClipboardViewer, WM_DRAWCLIPBOARD, 0, 0);
-	}
-}
-
-/*
- * Called when the clipboard chain is changed (i.e. a window
- * is added/removed).
- */
-void Explorerplusplus::OnChangeCBChain(WPARAM wParam, LPARAM lParam)
-{
-	if ((HWND) wParam == m_hNextClipboardViewer)
-		m_hNextClipboardViewer = (HWND) lParam;
-	else if (m_hNextClipboardViewer != nullptr)
-		SendMessage(m_hNextClipboardViewer, WM_CHANGECBCHAIN, wParam, lParam);
 }
 
 void Explorerplusplus::HandleDirectoryMonitoring(int iTabId)
@@ -1444,7 +1381,7 @@ void Explorerplusplus::SaveAllSettings()
 	delete pLoadSave;
 }
 
-Config *Explorerplusplus::GetConfig() const
+const Config *Explorerplusplus::GetConfig() const
 {
 	return m_config.get();
 }

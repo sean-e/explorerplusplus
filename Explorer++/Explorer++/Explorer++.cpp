@@ -64,7 +64,6 @@ Explorerplusplus::Explorerplusplus(HWND hwnd) :
 	m_hFoldersToolbar = nullptr;
 	m_hLastActiveWindow = nullptr;
 	m_hActiveListView = nullptr;
-	m_hNextClipboardViewer = nullptr;
 	m_zDeltaTotal = 0;
 	m_InitializationFinished.set(false);
 
@@ -73,9 +72,6 @@ Explorerplusplus::Explorerplusplus(HWND hwnd) :
 	m_ColorRules = NColorRuleHelper::GetDefaultColorRules();
 
 	m_iDWFolderSizeUniqueId = 0;
-
-	m_pClipboardDataObject = nullptr;
-	m_iCutTabInternal = 0;
 }
 
 Explorerplusplus::~Explorerplusplus()

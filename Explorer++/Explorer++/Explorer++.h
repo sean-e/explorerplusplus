@@ -175,8 +175,6 @@ private:
 	int OnClose();
 	int OnDestroy();
 	void OnRightClick(NMHDR *nmhdr);
-	void OnDrawClipboard();
-	void OnChangeCBChain(WPARAM wParam, LPARAM lParam);
 	void OnSetFocus();
 	LRESULT OnDeviceChange(WPARAM wParam, LPARAM lParam);
 	LRESULT StatusBarMenuSelect(WPARAM wParam, LPARAM lParam);
@@ -241,15 +239,11 @@ private:
 
 	/* ListView private message handlers. */
 	void OnListViewDoubleClick(NMHDR *nmhdr);
-	void OnListViewFileRename();
-	void OnListViewFileRenameSingle();
-	void OnListViewFileRenameMultiple();
 	LRESULT OnListViewKeyDown(LPARAM lParam);
 	BOOL OnListViewItemChanging(const NMLISTVIEW *changeData);
 	HRESULT OnListViewBeginDrag(LPARAM lParam, DragType dragType);
 	BOOL OnListViewBeginLabelEdit(LPARAM lParam);
 	BOOL OnListViewEndLabelEdit(LPARAM lParam);
-	void OnListViewFileDelete(bool permanent);
 	void OnListViewRClick(POINT *pCursorPos);
 	void OnListViewBackgroundRClick(POINT *pCursorPos);
 	void OnListViewItemRClick(POINT *pCursorPos);
@@ -412,7 +406,6 @@ private:
 	void OpenItem(PCIDLIST_ABSOLUTE pidlItem, BOOL bOpenInNewTab, BOOL bOpenInNewWindow) override;
 	void OpenFolderItem(PCIDLIST_ABSOLUTE pidlItem, BOOL bOpenInNewTab, BOOL bOpenInNewWindow);
 	void OpenFileItem(PCIDLIST_ABSOLUTE pidlItem, const TCHAR *szParameters) override;
-	HRESULT OnListViewCopy(BOOL bCopy);
 
 	/* File context menu. */
 	void AddMenuEntries(PCIDLIST_ABSOLUTE pidlParent, const std::vector<PITEMID_CHILD> &pidlItems,
@@ -434,12 +427,6 @@ private:
 	BOOL TestItemAttributes(SFGAOF attributes) const;
 	HRESULT GetSelectionAttributes(SFGAOF *pItemAttributes) const;
 
-	void BuildListViewFileSelectionList(
-		HWND hListView, std::list<std::wstring> *pFileSelectionList);
-	BOOL TestListViewItemAttributes(int item, SFGAOF attributes) const;
-	HRESULT GetListViewSelectionAttributes(SFGAOF *pItemAttributes) const;
-	HRESULT GetListViewItemAttributes(const Tab &tab, int item, SFGAOF *pItemAttributes) const;
-
 	HRESULT GetTreeViewSelectionAttributes(SFGAOF *pItemAttributes) const;
 
 	/* Display window. */
@@ -459,7 +446,7 @@ private:
 	HRESULT ExpandAndBrowsePath(const TCHAR *szPath, BOOL bOpenInNewTab, BOOL bSwitchToNewTab);
 
 	/* IExplorerplusplus methods. */
-	Config *GetConfig() const override;
+	const Config *GetConfig() const override;
 	HMODULE GetLanguageModule() const override;
 	HWND GetMainWindow() const override;
 	HWND GetActiveListView() const override;
@@ -489,6 +476,9 @@ private:
 	HMENU CreateRebarHistoryMenu(BOOL bBack);
 	std::optional<int> OnRebarCustomDraw(NMHDR *nmhdr);
 	bool OnRebarEraseBackground(HDC hdc);
+
+	boost::signals2::connection AddApplicationShuttingDownObserver(
+		const ApplicationShuttingDownSignal::slot_type &observer) override;
 
 	/* Miscellaneous. */
 	void CreateStatusBar();
@@ -524,7 +514,6 @@ private:
 
 	/** Internal state. **/
 	HWND m_hLastActiveWindow;
-	HWND m_hNextClipboardViewer;
 	std::wstring m_CurrentDirectory;
 	bool m_bTreeViewRightClick;
 	bool m_bSelectingTreeViewDirectory;
@@ -549,6 +538,7 @@ private:
 	CachedIcons m_cachedIcons;
 
 	MainMenuPreShowSignal m_mainMenuPreShowSignal;
+	ApplicationShuttingDownSignal m_applicationShuttingDownSignal;
 
 	/* Tabs. */
 	TabContainer *m_tabContainer;
@@ -619,9 +609,6 @@ private:
 	std::list<DWFolderSize> m_DWFolderSizes;
 	int m_iDWFolderSizeUniqueId;
 
-	/* Copy/cut. */
-	IDataObject *m_pClipboardDataObject;
-
 	/* Drag and drop. */
 	bool m_bDragging;
 	bool m_bDragCancelled;
@@ -629,10 +616,6 @@ private:
 
 	/* Rename support. */
 	bool m_bListViewRenaming;
-
-	/* Cut items data. */
-	std::list<std::wstring> m_CutFileNameList;
-	int m_iCutTabInternal;
 
 	/* Menu images. */
 	std::vector<wil::unique_hbitmap> m_menuImages;
