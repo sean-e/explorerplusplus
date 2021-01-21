@@ -124,7 +124,7 @@ void Explorerplusplus::ValidateSingleColumnSet(int iColumnSet, std::vector<Colum
 	}
 
 	/* Check that no unknown column types appear in the column list. */
-	for (auto itr = columns.cbegin(); itr != columns.cend();)
+	for (auto itr = columns.cbegin(); itr != columns.cend(); )
 	{
 		bFound = FALSE;
 
