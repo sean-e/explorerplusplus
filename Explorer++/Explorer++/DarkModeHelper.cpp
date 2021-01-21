@@ -184,7 +184,9 @@ HBRUSH DarkModeHelper::GetBackgroundBrush()
 void DarkModeHelper::SetListViewDarkModeColors(HWND listView)
 {
 	AllowDarkModeForWindow(listView, true);
-	SetWindowTheme(listView, L"ItemsView", nullptr);
+	// this causes vertical gridlines in dark mode; 
+	// side-effect is selection color (minor) and scrollbar color (more than minor)
+//	SetWindowTheme(listView, L"ItemsView", nullptr);
 
 	HWND header = ListView_GetHeader(listView);
 	AllowDarkModeForWindow(header, true);
