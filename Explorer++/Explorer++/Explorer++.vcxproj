@@ -479,6 +479,7 @@
     <ClCompile Include="DarkModeDialogBase.cpp" />
     <ClCompile Include="DarkModeGroupBox.cpp" />
     <ClCompile Include="DarkModeHelper.cpp" />
+    <ClCompile Include="FolderView.cpp" />
     <ClCompile Include="Plugins\AcceleratorParser.cpp" />
     <ClCompile Include="AcceleratorUpdater.cpp" />
     <ClCompile Include="Bookmarks\UI\AddBookmarkDialog.cpp" />
@@ -512,6 +513,7 @@
     <ClCompile Include="ShellTreeView\iDropSource.cpp" />
     <ClCompile Include="ShellTreeView\iDropTarget.cpp" />
     <ClCompile Include="ShellTreeView\ShellTreeView.cpp" />
+    <ClCompile Include="ShellView.cpp" />
     <ClCompile Include="SortMenuBuilder.cpp" />
     <ClCompile Include="Bookmarks\BookmarkHandler.cpp" />
     <ClCompile Include="Bookmarks\BookmarkHelper.cpp" />
@@ -542,7 +544,7 @@
     <ClCompile Include="IDropFilesCallback.cpp" />
     <ClCompile Include="IconResourceLoader.cpp" />
     <ClCompile Include="IModelessDialogNotification.cpp" />
-    <ClCompile Include="INewMenuClient.cpp" />
+    <ClCompile Include="NewMenuClient.cpp" />
     <ClCompile Include="Initialization.cpp" />
     <ClCompile Include="LoadSaveRegistry.cpp" />
     <ClCompile Include="LoadSaveXml.cpp" />
@@ -550,7 +552,7 @@
     <ClCompile Include="MainWindow.cpp" />
     <ClCompile Include="MenuHelper.cpp" />
     <ClCompile Include="PluginInterface.cpp" />
-    <ClCompile Include="iServiceProvider.cpp" />
+    <ClCompile Include="ServiceProvider.cpp" />
     <ClCompile Include="Language.cpp" />
     <ClCompile Include="ListViewEdit.cpp" />
     <ClCompile Include="ListViewHandler.cpp" />
@@ -648,6 +650,7 @@
     <ClInclude Include="DarkModeDialogBase.h" />
     <ClInclude Include="DarkModeGroupBox.h" />
     <ClInclude Include="DarkModeHelper.h" />
+    <ClInclude Include="FolderView.h" />
     <ClInclude Include="Plugins\AcceleratorParser.h" />
     <ClInclude Include="AcceleratorUpdater.h" />
     <ClInclude Include="Bookmarks\UI\AddBookmarkDialog.h" />
@@ -705,8 +708,8 @@
     <ClInclude Include="IconResourceLoader.h" />
     <ClInclude Include="IDropFilesCallback.h" />
     <ClInclude Include="IModelessDialogNotification.h" />
-    <ClInclude Include="INewMenuClient.h" />
-    <ClInclude Include="iServiceProvider.h" />
+    <ClInclude Include="NewMenuClient.h" />
+    <ClInclude Include="ServiceProvider.h" />
     <ClInclude Include="ListViewEdit.h" />
     <ClInclude Include="LoadSaveInterface.h" />
     <ClInclude Include="LoadSaveRegistry.h" />
@@ -758,6 +761,7 @@
     <ClInclude Include="ShellBrowser\SortModes.h" />
     <ClInclude Include="ShellBrowser\ViewModes.h" />
     <ClInclude Include="ShellTreeView\ShellTreeView.h" />
+    <ClInclude Include="ShellView.h" />
     <ClInclude Include="SignalWrapper.h" />
     <ClInclude Include="SolWrapper.h" />
     <ClInclude Include="SortMenuBuilder.h" />

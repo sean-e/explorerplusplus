@@ -13,10 +13,12 @@
 #include "SetFileAttributesDialog.h"
 #include "ShellNavigationController.h"
 #include "../Helper/CachedIcons.h"
+#include "../Helper/DragDropHelper.h"
 #include "../Helper/Helper.h"
 #include "../Helper/IconFetcher.h"
 #include "../Helper/ListViewHelper.h"
 #include "../Helper/ShellHelper.h"
+#include "../Helper/iDropSource.h"
 #include <boost/format.hpp>
 #include <wil/common.h>
 
@@ -74,6 +76,22 @@ LRESULT CALLBACK ShellBrowser::ListViewProc(HWND hwnd, UINT uMsg, WPARAM wParam,
 		OnListViewMButtonUp(&pt, static_cast<UINT>(wParam));
 	}
 	break;
+
+	// Note that the specific HANDLE_WM_RBUTTONDOWN message cracker is used here, rather than the
+	// more generic message cracker HANDLE_MSG because it's important that the listview control
+	// itself receive this message. Returning 0 would prevent that from happening.
+	// The same reasoning applies to some of the other messages below.
+	case WM_RBUTTONDOWN:
+		HANDLE_WM_RBUTTONDOWN(hwnd, wParam, lParam, OnRButtonDown);
+		break;
+
+	case WM_RBUTTONUP:
+		HANDLE_WM_RBUTTONUP(hwnd, wParam, lParam, OnRButtonUp);
+		break;
+
+	case WM_MOUSEMOVE:
+		HANDLE_WM_MOUSEMOVE(hwnd, wParam, lParam, OnMouseMove);
+		break;
 
 	case WM_CLIPBOARDUPDATE:
 		OnClipboardUpdate();
@@ -152,6 +170,10 @@ LRESULT CALLBACK ShellBrowser::ListViewParentProc(
 		{
 			switch (reinterpret_cast<LPNMHDR>(lParam)->code)
 			{
+			case LVN_BEGINDRAG:
+				OnListViewBeginDrag(reinterpret_cast<NMLISTVIEW *>(lParam));
+				break;
+
 			case LVN_GETDISPINFO:
 				OnListViewGetDisplayInfo(lParam);
 				break;
@@ -246,6 +268,71 @@ void ShellBrowser::OnListViewMButtonUp(const POINT *pt, UINT keysDown)
 	}
 
 	m_tabNavigation->CreateNewTab(itemInfo.pidlComplete.get(), switchToNewTab);
+}
+
+void ShellBrowser::OnRButtonDown(HWND hwnd, BOOL doubleClick, int x, int y, UINT keyFlags)
+{
+	UNREFERENCED_PARAMETER(hwnd);
+	UNREFERENCED_PARAMETER(doubleClick);
+
+	m_rightClickDragAllowed = false;
+
+	if (WI_IsFlagSet(keyFlags, MK_LBUTTON) || WI_IsFlagSet(keyFlags, MK_MBUTTON))
+	{
+		return;
+	}
+
+	LV_HITTESTINFO lvhti;
+	lvhti.pt.x = x;
+	lvhti.pt.y = y;
+	int index = ListView_HitTest(m_hListView, &lvhti);
+
+	if (index == -1)
+	{
+		return;
+	}
+
+	m_rightClickDragAllowed = true;
+	m_rightClickDragStartPoint = { x, y };
+	m_rightClickDragItem = index;
+}
+
+void ShellBrowser::OnRButtonUp(HWND hwnd, int x, int y, UINT keyFlags)
+{
+	UNREFERENCED_PARAMETER(hwnd);
+	UNREFERENCED_PARAMETER(x);
+	UNREFERENCED_PARAMETER(y);
+	UNREFERENCED_PARAMETER(keyFlags);
+
+	m_rightClickDragAllowed = false;
+}
+
+void ShellBrowser::OnMouseMove(HWND hwnd, int x, int y, UINT keyFlags)
+{
+	UNREFERENCED_PARAMETER(hwnd);
+	UNREFERENCED_PARAMETER(x);
+	UNREFERENCED_PARAMETER(y);
+
+	if (m_performingDrag || !m_rightClickDragAllowed)
+	{
+		return;
+	}
+
+	if (WI_IsFlagClear(keyFlags, MK_RBUTTON) || WI_IsFlagSet(keyFlags, MK_LBUTTON)
+		|| WI_IsFlagSet(keyFlags, MK_MBUTTON))
+	{
+		return;
+	}
+
+	if (ListView_GetSelectedCount(m_hListView) > 0)
+	{
+		// This is reset so that if the right mouse button goes down and a drag is initiated, then
+		// canceled (while the button is still down), a new drag won't start until the right mouse
+		// button goes down again.
+		m_rightClickDragAllowed = false;
+
+		StartDrag(DragType::RightClick, m_rightClickDragItem, m_rightClickDragStartPoint);
+	}
 }
 
 void ShellBrowser::OnListViewGetDisplayInfo(LPARAM lParam)
@@ -536,7 +623,7 @@ void ShellBrowser::OnListViewItemChanged(const NMLISTVIEW *changeData)
 		return;
 	}
 
-	if (m_bPerformingDrag)
+	if (m_performingDrop)
 	{
 		return;
 	}
@@ -612,7 +699,7 @@ void ShellBrowser::OnListViewKeyDown(const NMLVKEYDOWN *lvKeyDown)
 	case 'C':
 		if (IsKeyDown(VK_CONTROL) && !IsKeyDown(VK_SHIFT) && !IsKeyDown(VK_MENU))
 		{
-			CopySelectedItemToClipboard(true);
+			CopySelectedItemsToClipboard(true);
 		}
 		break;
 
@@ -627,7 +714,7 @@ void ShellBrowser::OnListViewKeyDown(const NMLVKEYDOWN *lvKeyDown)
 	case 'X':
 		if (IsKeyDown(VK_CONTROL) && !IsKeyDown(VK_SHIFT) && !IsKeyDown(VK_MENU))
 		{
-			CopySelectedItemToClipboard(false);
+			CopySelectedItemsToClipboard(false);
 		}
 		break;
 
@@ -944,15 +1031,64 @@ HRESULT ShellBrowser::GetListViewItemAttributes(int item, SFGAOF *attributes) co
 	return GetItemAttributes(itemInfo.pidlComplete.get(), attributes);
 }
 
-std::vector<std::wstring> ShellBrowser::GetSelectedItems()
+std::vector<PCIDLIST_ABSOLUTE> ShellBrowser::GetSelectedItemPidls()
 {
-	std::vector<std::wstring> selectedFiles;
-	int item = -1;
+	std::vector<PCIDLIST_ABSOLUTE> selectedItemPidls;
+	int index = -1;
 
-	while ((item = ListView_GetNextItem(m_hListView, item, LVNI_SELECTED)) != -1)
+	while ((index = ListView_GetNextItem(m_hListView, index, LVNI_SELECTED)) != -1)
 	{
-		selectedFiles.push_back(GetItemFullName(item));
+		const auto &item = GetItemByIndex(index);
+		selectedItemPidls.push_back(item.pidlComplete.get());
 	}
 
-	return selectedFiles;
+	return selectedItemPidls;
+}
+
+void ShellBrowser::OnListViewBeginDrag(const NMLISTVIEW *info)
+{
+	StartDrag(DragType::LeftClick, info->iItem, info->ptAction);
+}
+
+HRESULT ShellBrowser::StartDrag(DragType dragType, int draggedItem, const POINT &startPoint)
+{
+	std::vector<PCIDLIST_ABSOLUTE> pidls = GetSelectedItemPidls();
+
+	if (pidls.empty())
+	{
+		return E_UNEXPECTED;
+	}
+
+	wil::com_ptr_nothrow<IDataObject> dataObject;
+	RETURN_IF_FAILED(CreateDataObjectForShellTransfer(pidls, &dataObject));
+
+	wil::com_ptr_nothrow<IDragSourceHelper> dragSourceHelper;
+	RETURN_IF_FAILED(CoCreateInstance(
+		CLSID_DragDropHelper, nullptr, CLSCTX_ALL, IID_PPV_ARGS(&dragSourceHelper)));
+
+	wil::com_ptr_nothrow<IDropSource> dropSource;
+	RETURN_IF_FAILED(CreateDropSource(&dropSource, dragType));
+	RETURN_IF_FAILED(
+		dragSourceHelper->InitializeFromWindow(m_hListView, nullptr, dataObject.get()));
+
+	m_performingDrag = true;
+	m_draggedItems = DeepCopyPidls(pidls);
+
+	POINT ptItem;
+	ListView_GetItemPosition(m_hListView, draggedItem, &ptItem);
+
+	POINT ptOrigin;
+	ListView_GetOrigin(m_hListView, &ptOrigin);
+
+	m_ptDraggedOffset.x = ptOrigin.x + startPoint.x - ptItem.x;
+	m_ptDraggedOffset.y = ptOrigin.y + startPoint.y - ptItem.y;
+
+	DWORD finalEffect;
+	HRESULT hr = DoDragDrop(dataObject.get(), dropSource.get(),
+		DROPEFFECT_COPY | DROPEFFECT_MOVE | DROPEFFECT_LINK, &finalEffect);
+
+	m_draggedItems.clear();
+	m_performingDrag = false;
+
+	return hr;
 }

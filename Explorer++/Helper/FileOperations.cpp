@@ -4,6 +4,7 @@
 
 #include "stdafx.h"
 #include "FileOperations.h"
+#include "DragDropHelper.h"
 #include "DriveInfo.h"
 #include "Helper.h"
 #include "Macros.h"
@@ -397,69 +398,30 @@ BOOL NFileOperations::SaveDirectoryListing(
 	return FALSE;
 }
 
-HRESULT CopyFiles(const std::vector<std::wstring> &FileNameList, IDataObject **pClipboardDataObject)
+HRESULT CopyFiles(const std::vector<PCIDLIST_ABSOLUTE> &items, IDataObject **dataObjectOut)
 {
-	return CopyFilesToClipboard(FileNameList, FALSE, pClipboardDataObject);
+	return CopyFilesToClipboard(items, false, dataObjectOut);
 }
 
-HRESULT CutFiles(const std::vector<std::wstring> &FileNameList, IDataObject **pClipboardDataObject)
+HRESULT CutFiles(const std::vector<PCIDLIST_ABSOLUTE> &items, IDataObject **dataObjectOut)
 {
-	return CopyFilesToClipboard(FileNameList, TRUE, pClipboardDataObject);
+	return CopyFilesToClipboard(items, true, dataObjectOut);
 }
 
 HRESULT CopyFilesToClipboard(
-	const std::vector<std::wstring> &FileNameList, BOOL bMove, IDataObject **pClipboardDataObject)
+	const std::vector<PCIDLIST_ABSOLUTE> &items, bool move, IDataObject **dataObjectOut)
 {
-	FORMATETC ftc[2];
-	STGMEDIUM stg[2];
-	BuildHDropList(&ftc[0], &stg[0], FileNameList);
+	wil::com_ptr_nothrow<IDataObject> dataObject;
+	RETURN_IF_FAILED(CreateDataObjectForShellTransfer(items, &dataObject));
 
-	ftc[1].cfFormat = (CLIPFORMAT) RegisterClipboardFormat(CFSTR_PREFERREDDROPEFFECT);
-	ftc[1].ptd = nullptr;
-	ftc[1].dwAspect = DVASPECT_CONTENT;
-	ftc[1].lindex = -1;
-	ftc[1].tymed = TYMED_HGLOBAL;
+	DWORD effect = move ? DROPEFFECT_MOVE : DROPEFFECT_COPY;
+	RETURN_IF_FAILED(SetPreferredDropEffect(dataObject.get(), effect));
 
-	HRESULT hr = E_FAIL;
-	HGLOBAL hglb = GlobalAlloc(GMEM_MOVEABLE, sizeof(DWORD));
+	RETURN_IF_FAILED(OleSetClipboard(dataObject.get()));
 
-	if (hglb != nullptr)
-	{
-		auto *pdwCopyEffect = static_cast<DWORD *>(GlobalLock(hglb));
+	*dataObjectOut = dataObject.detach();
 
-		if (pdwCopyEffect != nullptr)
-		{
-			if (bMove)
-			{
-				*pdwCopyEffect = DROPEFFECT_MOVE;
-			}
-			else
-			{
-				*pdwCopyEffect = DROPEFFECT_COPY;
-			}
-
-			GlobalUnlock(hglb);
-
-			stg[1].pUnkForRelease = nullptr;
-			stg[1].hGlobal = hglb;
-			stg[1].tymed = TYMED_HGLOBAL;
-
-			*pClipboardDataObject = CreateDataObject(ftc, stg, 2);
-
-			IDataObjectAsyncCapability *pAsyncCapability = nullptr;
-			hr = (*pClipboardDataObject)->QueryInterface(IID_PPV_ARGS(&pAsyncCapability));
-
-			if (SUCCEEDED(hr))
-			{
-				pAsyncCapability->SetAsyncMode(TRUE);
-				pAsyncCapability->Release();
-
-				hr = OleSetClipboard(*pClipboardDataObject);
-			}
-		}
-	}
-
-	return hr;
+	return S_OK;
 }
 
 int PasteLinksToClipboardFiles(const TCHAR *szDestination)

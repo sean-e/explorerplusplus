@@ -6,21 +6,24 @@
 #include "Explorer++.h"
 #include "Config.h"
 #include "Explorer++_internal.h"
+#include "FolderView.h"
 #include "IDropFilesCallback.h"
 #include "ListViewEdit.h"
 #include "MainResource.h"
 #include "MainToolbar.h"
 #include "Navigation.h"
+#include "NewMenuClient.h"
 #include "ResourceHelper.h"
+#include "ServiceProvider.h"
 #include "SetFileAttributesDialog.h"
 #include "ShellBrowser/Columns.h"
 #include "ShellBrowser/ShellBrowser.h"
 #include "ShellBrowser/ShellNavigationController.h"
 #include "ShellBrowser/ViewModes.h"
+#include "ShellView.h"
 #include "SortMenuBuilder.h"
 #include "TabContainer.h"
 #include "ViewModeHelper.h"
-#include "iServiceProvider.h"
 #include "../Helper/BulkClipboardWriter.h"
 #include "../Helper/ContextMenuManager.h"
 #include "../Helper/DropHandler.h"
@@ -127,67 +130,16 @@ LRESULT CALLBACK Explorerplusplus::ListViewSubclassProc(
 					}
 				}
 			}
-
-			if (!(lvhti.flags & LVHT_NOWHERE))
-			{
-				m_bDragAllowed = true;
-			}
 		}
 		break;
 
 	case WM_RBUTTONUP:
-		m_bDragCancelled = false;
-		m_bDragAllowed = false;
-
 		m_blockNextListViewSelection = false;
 		break;
 
-	/* If no item is currently been dragged, and the last drag
-	has not just finished (i.e. item was dragged, but was cancelled
-	with escape, but mouse button is still down), and when the right
-	mouse button was clicked, it was over an item, start dragging. */
 	case WM_MOUSEMOVE:
-	{
 		m_blockNextListViewSelection = false;
-		if (!m_bDragging && !m_bDragCancelled && m_bDragAllowed)
-		{
-			if ((wParam & MK_RBUTTON) && !(wParam & MK_LBUTTON) && !(wParam & MK_MBUTTON))
-			{
-				NMLISTVIEW nmlv;
-				POINT pt;
-				DWORD dwPos;
-				HRESULT hr;
-
-				dwPos = GetMessagePos();
-				pt.x = GET_X_LPARAM(dwPos);
-				pt.y = GET_Y_LPARAM(dwPos);
-				MapWindowPoints(HWND_DESKTOP, m_hActiveListView, &pt, 1);
-
-				LV_HITTESTINFO lvhti;
-
-				lvhti.pt = pt;
-
-				/* Test to see if the mouse click was
-				on an item or not. */
-				ListView_HitTest(m_hActiveListView, &lvhti);
-
-				if (!(lvhti.flags & LVHT_NOWHERE)
-					&& ListView_GetSelectedCount(m_hActiveListView) > 0)
-				{
-					nmlv.iItem = 0;
-					nmlv.ptAction = pt;
-
-					hr = OnListViewBeginDrag((LPARAM) &nmlv, DragType::RightClick);
-
-					if (hr == DRAGDROP_S_CANCEL)
-					{
-						m_bDragCancelled = true;
-					}
-				}
-			}
-		}
-	}
-	break;
+		break;
 
 	case WM_MOUSEWHEEL:
 		if (OnMouseWheel(MousewheelSource::ListView, wParam, lParam))
@@ -563,6 +515,44 @@ void Explorerplusplus::OnListViewRClick(POINT *pCursorPos)
 
 void Explorerplusplus::OnListViewBackgroundRClick(POINT *pCursorPos)
 {
+	if (IsWindows8OrGreater())
+	{
+		OnListViewBackgroundRClickWindows8OrGreater(pCursorPos);
+	}
+	else
+	{
+		OnListViewBackgroundRClickWindows7(pCursorPos);
+	}
+}
+
+void Explorerplusplus::OnListViewBackgroundRClickWindows8OrGreater(POINT *pCursorPos)
+{
+	auto pidlDirectory = m_pActiveShellBrowser->GetDirectoryIdl();
+
+	FileContextMenuManager fcmm(m_hActiveListView, pidlDirectory.get(), {});
+
+	FileContextMenuInfo fcmi;
+	fcmi.uFrom = FROM_LISTVIEW;
+
+	StatusBar statusBar(m_hStatusBar);
+
+	auto serviceProvider = ServiceProvider::Create();
+
+	auto newMenuClient = NewMenuClient::Create(this);
+	serviceProvider->RegisterService(IID_INewMenuClient, newMenuClient.get());
+
+	auto folderView = FolderView::Create(pidlDirectory.get());
+	serviceProvider->RegisterService(IID_IFolderView, folderView.get());
+
+	auto shellView = ShellView::Create(pidlDirectory.get(), m_pActiveShellBrowser);
+	serviceProvider->RegisterService(SID_DefView, shellView.get());
+
+	fcmm.ShowMenu(this, MIN_SHELL_MENU_ID, MAX_SHELL_MENU_ID, pCursorPos, &statusBar,
+		serviceProvider.get(), reinterpret_cast<DWORD_PTR>(&fcmi), TRUE, IsKeyDown(VK_SHIFT));
+}
+
+void Explorerplusplus::OnListViewBackgroundRClickWindows7(POINT *pCursorPos)
+{
 	auto parentMenu = InitializeRightClickMenu();
 	HMENU menu = GetSubMenu(parentMenu.get(), 0);
 
@@ -589,9 +579,13 @@ void Explorerplusplus::OnListViewBackgroundRClick(POINT *pCursorPos)
 		return;
 	}
 
-	ServiceProvider serviceProvider(this);
+	auto serviceProvider = ServiceProvider::Create();
+
+	auto newMenuClient = NewMenuClient::Create(this);
+	serviceProvider->RegisterService(IID_INewMenuClient, newMenuClient.get());
+
 	ContextMenuManager cmm(ContextMenuManager::ContextMenuType::Background, pidlDirectory.get(),
-		pDataObject.get(), &serviceProvider, BLACKLISTED_BACKGROUND_MENU_CLSID_ENTRIES);
+		pDataObject.get(), serviceProvider.get(), BLACKLISTED_BACKGROUND_MENU_CLSID_ENTRIES);
 
 	cmm.ShowMenu(m_hContainer, menu, IDM_FILE_COPYFOLDERPATH, MIN_SHELL_MENU_ID, MAX_SHELL_MENU_ID,
 		*pCursorPos, *m_pStatusBar);
@@ -658,113 +652,9 @@ void Explorerplusplus::OnListViewItemRClick(POINT *pCursorPos)
 
 		StatusBar statusBar(m_hStatusBar);
 
-		fcmm.ShowMenu(this, MIN_SHELL_MENU_ID, MAX_SHELL_MENU_ID, pCursorPos, &statusBar,
+		fcmm.ShowMenu(this, MIN_SHELL_MENU_ID, MAX_SHELL_MENU_ID, pCursorPos, &statusBar, nullptr,
 			reinterpret_cast<DWORD_PTR>(&fcmi), TRUE, IsKeyDown(VK_SHIFT));
 	}
-}
-
-HRESULT Explorerplusplus::OnListViewBeginDrag(LPARAM lParam, DragType dragType)
-{
-	IDropSource *pDropSource = nullptr;
-	IDragSourceHelper *pDragSourceHelper = nullptr;
-	NMLISTVIEW *pnmlv = nullptr;
-	POINT pt = { 0, 0 };
-	HRESULT hr;
-	int iDragStartObjectIndex;
-
-	pnmlv = reinterpret_cast<NMLISTVIEW *>(lParam);
-
-	if (ListView_GetSelectedCount(m_hActiveListView) == 0)
-	{
-		return E_FAIL;
-	}
-
-	std::vector<unique_pidl_child> pidls;
-	std::vector<PCITEMID_CHILD> rawPidls;
-	std::vector<std::wstring> filenameList;
-
-	int item = -1;
-
-	/* Store the pidl of the current folder, as well as the relative
-	pidl's of the dragged items. */
-	auto pidlDirectory = m_pActiveShellBrowser->GetDirectoryIdl();
-
-	while ((item = ListView_GetNextItem(m_hActiveListView, item, LVNI_SELECTED)) != -1)
-	{
-		auto pidl = m_pActiveShellBrowser->GetItemChildIdl(item);
-
-		rawPidls.push_back(pidl.get());
-		pidls.push_back(std::move(pidl));
-
-		std::wstring fullFilename = m_pActiveShellBrowser->GetItemFullName(item);
-		filenameList.push_back(fullFilename);
-	}
-
-	hr = CoCreateInstance(
-		CLSID_DragDropHelper, nullptr, CLSCTX_ALL, IID_PPV_ARGS(&pDragSourceHelper));
-
-	if (SUCCEEDED(hr))
-	{
-		hr = CreateDropSource(&pDropSource, dragType);
-
-		if (SUCCEEDED(hr))
-		{
-			FORMATETC ftc[2];
-			STGMEDIUM stg[2];
-
-			/* We'll export two formats:
-			CF_HDROP
-			CFSTR_SHELLIDLIST */
-			BuildHDropList(&ftc[0], &stg[0], filenameList);
-			BuildShellIDList(&ftc[1], &stg[1], pidlDirectory.get(), rawPidls);
-
-			IDataObject *pDataObject = CreateDataObject(ftc, stg, 2);
-
-			IDataObjectAsyncCapability *pAsyncCapability = nullptr;
-			pDataObject->QueryInterface(IID_PPV_ARGS(&pAsyncCapability));
-
-			assert(pAsyncCapability != nullptr);
-
-			/* Docs mention setting the argument to VARIANT_TRUE/VARIANT_FALSE.
-			But the argument is a BOOL, so we'll go with regular TRUE/FALSE. */
-			pAsyncCapability->SetAsyncMode(TRUE);
-
-			hr = pDragSourceHelper->InitializeFromWindow(m_hActiveListView, &pt, pDataObject);
-
-			m_pActiveShellBrowser->DragStarted(pnmlv->iItem, &pnmlv->ptAction);
-			m_bDragging = true;
-
-			/* Need to remember which tab started the drag (as
-			it may be different from the tab in which the drag
-			finishes). */
-			iDragStartObjectIndex = m_tabContainer->GetSelectedTab().GetId();
-
-			DWORD dwEffect;
-
-			hr = DoDragDrop(pDataObject, pDropSource,
-				DROPEFFECT_COPY | DROPEFFECT_MOVE | DROPEFFECT_LINK, &dwEffect);
-
-			m_bDragging = false;
-
-			/* The object that starts any drag may NOT be the
-			object that stops it (i.e. when a file is dragged
-			between tabs). Therefore, need to tell the object
-			that STARTED dragging that dragging has stopped. */
-			m_tabContainer->GetTab(iDragStartObjectIndex).GetShellBrowser()->DragStopped();
-
-			BOOL bInAsyncOp;
-
-			hr = pAsyncCapability->InOperation(&bInAsyncOp);
-
-			pAsyncCapability->Release();
-			pDataObject->Release();
-			pDropSource->Release();
-		}
-
-		pDragSourceHelper->Release();
-	}
-
-	return hr;
 }
 
 void Explorerplusplus::OnListViewDoubleClick(NMHDR *nmhdr)

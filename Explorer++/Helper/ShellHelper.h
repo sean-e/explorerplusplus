@@ -48,6 +48,7 @@ struct ContextMenuHandler
 };
 
 using unique_pidl_absolute = wil::unique_cotaskmem_ptr<std::remove_pointer_t<PIDLIST_ABSOLUTE>>;
+using unique_pidl_relative = wil::unique_cotaskmem_ptr<std::remove_pointer_t<PIDLIST_RELATIVE>>;
 using unique_pidl_child = wil::unique_cotaskmem_ptr<std::remove_pointer_t<PITEMID_CHILD>>;
 
 void DecodePath(const TCHAR *szInitialPath, const TCHAR *szCurrentDirectory, TCHAR *szParsingPath,
@@ -60,10 +61,6 @@ HRESULT GetCsidlDisplayName(int csidl, DWORD flags, std::wstring &output);
 HRESULT GetVirtualParentPath(PCIDLIST_ABSOLUTE pidlDirectory, PIDLIST_ABSOLUTE *pidlParent);
 BOOL IsNamespaceRoot(PCIDLIST_ABSOLUTE pidl);
 BOOL MyExpandEnvironmentStrings(const TCHAR *szSrc, TCHAR *szExpandedPath, DWORD nSize);
-HRESULT BuildHDropList(
-	FORMATETC *pftc, STGMEDIUM *pstg, const std::vector<std::wstring> &filenameList);
-HRESULT BuildShellIDList(FORMATETC *pftc, STGMEDIUM *pstg, PCIDLIST_ABSOLUTE pidlDirectory,
-	const std::vector<PCITEMID_CHILD> &pidlList);
 HRESULT BindToIdl(PCIDLIST_ABSOLUTE pidl, REFIID riid, void **ppv);
 HRESULT GetUIObjectOf(IShellFolder *pShellFolder, HWND hwndOwner, UINT cidl,
 	PCUITEMID_CHILD_ARRAY apidl, REFIID riid, void **ppv);
@@ -99,7 +96,8 @@ HRESULT ExecuteActionFromContextMenu(PCIDLIST_ABSOLUTE pidlDirectory, PCITEMID_C
 	HWND hwndOwner, int nFiles, const TCHAR *szAction, DWORD fMask);
 BOOL CompareVirtualFolders(const TCHAR *szDirectory, UINT uFolderCSIDL);
 bool IsChildOfLibrariesFolder(PCIDLIST_ABSOLUTE pidl);
-HRESULT CreateSimplePidl(const std::wstring &path, PIDLIST_ABSOLUTE *pidl);
+HRESULT CreateSimplePidl(
+	const std::wstring &path, PIDLIST_ABSOLUTE *pidl, IShellFolder *parent = nullptr);
 HRESULT SimplePidlToFullPidl(PCIDLIST_ABSOLUTE simplePidl, PIDLIST_ABSOLUTE *fullPidl);
 std::vector<unique_pidl_absolute> DeepCopyPidls(const std::vector<PCIDLIST_ABSOLUTE> &pidls);
 std::vector<unique_pidl_absolute> DeepCopyPidls(const std::vector<unique_pidl_absolute> &pidls);
@@ -117,3 +115,5 @@ int GetDefaultIcon(DefaultIconType defaultIconType);
 /* Infotips. */
 HRESULT GetItemInfoTip(const TCHAR *szItemPath, TCHAR *szInfoTip, size_t cchMax);
 HRESULT GetItemInfoTip(PCIDLIST_ABSOLUTE pidlComplete, TCHAR *szInfoTip, size_t cchMax);
+
+std::size_t hash_value(const IID &iid);

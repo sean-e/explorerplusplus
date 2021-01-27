@@ -1436,10 +1436,6 @@ LRESULT CALLBACK Explorerplusplus::NotifyHandler(HWND hwnd, UINT msg, WPARAM wPa
 		case LVN_ITEMCHANGING:
 			return OnListViewItemChanging(reinterpret_cast<NMLISTVIEW *>(lParam));
 
-		case LVN_BEGINDRAG:
-			OnListViewBeginDrag(lParam,DragType::LeftClick);
-			break;
-
 		case LVN_BEGINLABELEDIT:
 			return OnListViewBeginLabelEdit(reinterpret_cast<NMLVDISPINFO *>(lParam));
 
@@ -1579,8 +1575,15 @@ LRESULT CALLBACK Explorerplusplus::NotifyHandler(HWND hwnd, UINT msg, WPARAM wPa
 											break;
 
 										case ToolbarButton::Views:
-											hSubMenu = BuildViewsMenu();
+										{
+											auto viewsMenu = BuildViewsMenu();
+
+											// The submenu will be destroyed when the parent menu is
+											// destroyed.
+											hSubMenu = viewsMenu.release();
+
 											fMask |= MIIM_SUBMENU;
+										}
 											break;
 										}
 									}

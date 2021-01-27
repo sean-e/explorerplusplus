@@ -11,6 +11,7 @@
 #include "RegistrySettings.h"
 #include <boost/algorithm/string/join.hpp>
 #include <boost/algorithm/string/predicate.hpp>
+#include <boost/container_hash/hash.hpp>
 #include <wil/com.h>
 #include <propkey.h>
 
@@ -473,153 +474,6 @@ DWORD DetermineDragEffect(
 	return dwEffect;
 }
 
-HRESULT BuildHDropList(
-	FORMATETC *pftc, STGMEDIUM *pstg, const std::vector<std::wstring> &filenameList)
-{
-	SetFORMATETC(pftc, CF_HDROP, nullptr, DVASPECT_CONTENT, -1, TYMED_HGLOBAL);
-
-	UINT uSize = 0;
-
-	uSize = sizeof(DROPFILES);
-
-	for (const auto &filename : filenameList)
-	{
-		uSize += static_cast<UINT>((filename.length() + 1) * sizeof(TCHAR));
-	}
-
-	/* The last string is double-null terminated. */
-	uSize += (1 * sizeof(TCHAR));
-
-	HGLOBAL hglbHDrop = GlobalAlloc(GMEM_MOVEABLE, uSize);
-
-	if (hglbHDrop == nullptr)
-	{
-		return E_FAIL;
-	}
-
-	auto pcidaData = static_cast<LPVOID>(GlobalLock(hglbHDrop));
-
-	auto *pdf = static_cast<DROPFILES *>(pcidaData);
-
-	pdf->pFiles = sizeof(DROPFILES);
-	pdf->fNC = FALSE;
-	pdf->pt.x = 0;
-	pdf->pt.y = 0;
-	pdf->fWide = TRUE;
-
-	LPBYTE pData;
-	UINT uOffset = 0;
-
-	TCHAR chNull = '\0';
-
-	for (const auto &filename : filenameList)
-	{
-		pData = static_cast<LPBYTE>(pcidaData) + sizeof(DROPFILES) + uOffset;
-
-		memcpy(pData, filename.c_str(), (filename.length() + 1) * sizeof(TCHAR));
-		uOffset += static_cast<UINT>((filename.length() + 1) * sizeof(TCHAR));
-	}
-
-	/* Copy the last null byte. */
-	pData = static_cast<LPBYTE>(pcidaData) + sizeof(DROPFILES) + uOffset;
-	memcpy(pData, &chNull, (1 * sizeof(TCHAR)));
-
-	GlobalUnlock(hglbHDrop);
-
-	pstg->pUnkForRelease = nullptr;
-	pstg->hGlobal = hglbHDrop;
-	pstg->tymed = TYMED_HGLOBAL;
-
-	return S_OK;
-}
-
-/* Builds a CIDA structure. Returns the structure and its size
-via arguments.
-Returns S_OK on success; E_FAIL on failure. */
-HRESULT BuildShellIDList(FORMATETC *pftc, STGMEDIUM *pstg, PCIDLIST_ABSOLUTE pidlDirectory,
-	const std::vector<PCITEMID_CHILD> &pidlList)
-{
-	if (pftc == nullptr || pstg == nullptr || pidlDirectory == nullptr || pidlList.empty())
-	{
-		return E_FAIL;
-	}
-
-	SetFORMATETC(pftc, (CLIPFORMAT) RegisterClipboardFormat(CFSTR_SHELLIDLIST), nullptr,
-		DVASPECT_CONTENT, -1, TYMED_HGLOBAL);
-
-	/* First, we need to decide how much memory to
-	allocate to the structure. This is based on
-	the number of items that will be stored in
-	this structure. */
-	UINT uSize = 0;
-
-	UINT nItems = static_cast<UINT>(pidlList.size());
-
-	/* Size of the base structure + offset array. */
-	UINT uBaseSize = sizeof(CIDA) + (sizeof(UINT) * nItems);
-
-	uSize += uBaseSize;
-
-	/* Size of the parent pidl. */
-	uSize += ILGetSize(pidlDirectory);
-
-	/* Add the total size of the child pidl's. */
-	for (auto pidl : pidlList)
-	{
-		uSize += ILGetSize(pidl);
-	}
-
-	HGLOBAL hglbIDList = GlobalAlloc(GMEM_MOVEABLE, uSize);
-
-	if (hglbIDList == nullptr)
-	{
-		return E_FAIL;
-	}
-
-	auto pcidaData = static_cast<LPVOID>(GlobalLock(hglbIDList));
-
-	CIDA *pcida = static_cast<CIDA *>(pcidaData);
-
-	pcida->cidl = nItems;
-
-	UINT *pOffsets = pcida->aoffset;
-
-	pOffsets[0] = uBaseSize;
-
-	LPBYTE pData;
-
-	pData = (LPBYTE)(((LPBYTE) pcida) + pcida->aoffset[0]);
-
-	memcpy(pData, (LPVOID) pidlDirectory, ILGetSize(pidlDirectory));
-
-	UINT uPreviousSize;
-	int i = 0;
-
-	uPreviousSize = ILGetSize(pidlDirectory);
-
-	/* Store each of the pidl's. */
-	for (auto pidl : pidlList)
-	{
-		pOffsets[i + 1] = pOffsets[i] + uPreviousSize;
-
-		pData = (LPBYTE)(((LPBYTE) pcida) + pcida->aoffset[i + 1]);
-
-		memcpy(pData, (LPVOID) pidl, ILGetSize(pidl));
-
-		uPreviousSize = ILGetSize(pidl);
-
-		i++;
-	}
-
-	GlobalUnlock(hglbIDList);
-
-	pstg->pUnkForRelease = nullptr;
-	pstg->hGlobal = hglbIDList;
-	pstg->tymed = TYMED_HGLOBAL;
-
-	return S_OK;
-}
-
 HRESULT BindToIdl(PCIDLIST_ABSOLUTE pidl, REFIID riid, void **ppv)
 {
 	IShellFolder *pDesktop = nullptr;
@@ -980,7 +834,7 @@ BOOL ArePidlsEquivalent(PCIDLIST_ABSOLUTE pidl1, PCIDLIST_ABSOLUTE pidl2)
 
 	if (SUCCEEDED(hr))
 	{
-		hr = pDesktopFolder->CompareIDs(0, pidl1, pidl2);
+		hr = pDesktopFolder->CompareIDs(SHCIDS_CANONICALONLY, pidl1, pidl2);
 
 		if (HRESULT_CODE(hr) == 0)
 		{
@@ -1472,7 +1326,9 @@ private:
 };
 
 // This performs the same function as SHSimpleIDListFromPath(), which is deprecated.
-HRESULT CreateSimplePidl(const std::wstring &path, PIDLIST_ABSOLUTE *pidl)
+// The path provided should be relative to the parent. If parent is null, the path should be
+// absolute.
+HRESULT CreateSimplePidl(const std::wstring &path, PIDLIST_ABSOLUTE *pidl, IShellFolder *parent)
 {
 	wil::com_ptr_nothrow<IBindCtx> bindCtx;
 	RETURN_IF_FAILED(CreateBindCtx(0, &bindCtx));
@@ -1487,7 +1343,21 @@ HRESULT CreateSimplePidl(const std::wstring &path, PIDLIST_ABSOLUTE *pidl)
 	RETURN_IF_FAILED(
 		bindCtx->RegisterObjectParam(const_cast<PWSTR>(STR_FILE_SYS_BIND_DATA), fsBindData.get()));
 
-	return SHParseDisplayName(path.c_str(), bindCtx.get(), pidl, 0, nullptr);
+	if (!parent)
+	{
+		return SHParseDisplayName(path.c_str(), bindCtx.get(), pidl, 0, nullptr);
+	}
+
+	unique_pidl_relative pidlRelative;
+	RETURN_IF_FAILED(parent->ParseDisplayName(nullptr, bindCtx.get(),
+		const_cast<LPWSTR>(path.c_str()), nullptr, wil::out_param(pidlRelative), nullptr));
+
+	unique_pidl_absolute pidlParent;
+	RETURN_IF_FAILED(SHGetIDListFromObject(parent, wil::out_param(pidlParent)));
+
+	*pidl = ILCombine(pidlParent.get(), pidlRelative.get());
+
+	return S_OK;
 }
 
 // This performs the same function as SHGetRealIDL, which is deprecated.
@@ -1541,4 +1411,14 @@ std::vector<PCIDLIST_ABSOLUTE> ShallowCopyPidls(const std::vector<unique_pidl_ab
 			return pidl.get();
 		});
 	return rawPidls;
+}
+
+std::size_t hash_value(const IID &iid)
+{
+	std::size_t seed = 0;
+	boost::hash_combine(seed, iid.Data1);
+	boost::hash_combine(seed, iid.Data2);
+	boost::hash_combine(seed, iid.Data3);
+	boost::hash_combine(seed, iid.Data4);
+	return seed;
 }

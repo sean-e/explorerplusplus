@@ -300,6 +300,7 @@
     </ClCompile>
     <ClCompile Include="CustomGripper.cpp" />
     <ClCompile Include="DataExchangeHelper.cpp" />
+    <ClCompile Include="DataObjectWrapper.cpp" />
     <ClCompile Include="DialogSettings.cpp" />
     <ClCompile Include="DpiCompatibility.cpp" />
     <ClCompile Include="DragDropHelper.cpp" />
@@ -365,6 +366,7 @@
     <ClInclude Include="Controls.h" />
     <ClInclude Include="CustomGripper.h" />
     <ClInclude Include="DataExchangeHelper.h" />
+    <ClInclude Include="DataObjectWrapper.h" />
     <ClInclude Include="DialogSettings.h" />
     <ClInclude Include="DpiCompatibility.h" />
     <ClInclude Include="DragDropHelper.h" />
