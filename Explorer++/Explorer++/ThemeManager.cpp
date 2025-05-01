@@ -288,7 +288,9 @@ void ThemeManager::ApplyThemeToListView(HWND hwnd, bool enableDarkMode)
 
 	if (enableDarkMode)
 	{
-		SetWindowTheme(hwnd, L"ItemsView", nullptr);
+		// this SetWindowTheme call causes vertical gridlines in dark mode; 
+		// side-effect of disabling the call is selection color is blue instead of gray
+//		SetWindowTheme(hwnd, L"ItemsView", nullptr);
 	}
 	else
 	{
